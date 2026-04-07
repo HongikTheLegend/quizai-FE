@@ -5,6 +5,8 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { HelperTip } from "@/components/common/helper-tip";
+import { PageHero } from "@/components/common/page-hero";
 import { useStartSessionMutation } from "@/hooks/api/use-start-session-mutation";
 import { Input } from "@/components/ui/input";
 import { useQuizSocket } from "@/hooks/use-quiz-socket";
@@ -61,7 +63,19 @@ export default function InstructorSessionsPage() {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-2xl font-semibold">세션 진행/모니터링</h2>
+      <PageHero
+        title="세션 진행/모니터링"
+        description="세션 생성 후 참여코드를 복사해 수강생에게 전달하세요."
+        className="from-cyan-500/10 via-blue-500/10 to-violet-500/10"
+      />
+      <HelperTip
+        title="세션 운영 순서"
+        steps={[
+          "lecture id와 quiz id로 세션을 시작합니다.",
+          "생성된 참여코드를 학생에게 공유합니다.",
+          "하단 실시간 채널에서 응답 이벤트를 모니터링합니다.",
+        ]}
+      />
       <Card>
         <CardHeader>
           <CardTitle>세션 생성</CardTitle>

@@ -5,6 +5,8 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { HelperTip } from "@/components/common/helper-tip";
+import { PageHero } from "@/components/common/page-hero";
 import { Input } from "@/components/ui/input";
 import { useUploadLectureMutation } from "@/hooks/api/use-upload-lecture-mutation";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -63,12 +65,19 @@ export default function InstructorLecturesPage() {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-xl border bg-gradient-to-r from-blue-500/10 via-teal-500/10 to-purple-500/10 p-5">
-        <h2 className="text-2xl font-semibold">강의 자료 / AI 퀴즈 생성</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          PDF 업로드 -&gt; lecture_id 발급 -&gt; AI 퀴즈 생성 순서로 진행됩니다.
-        </p>
-      </div>
+      <PageHero
+        title="강의 자료 / AI 퀴즈 생성"
+        description="PDF 업로드 - lecture_id 발급 - AI 퀴즈 생성 순서로 진행됩니다."
+        className="from-blue-500/10 via-teal-500/10 to-purple-500/10"
+      />
+      <HelperTip
+        title="빠른 시작 가이드"
+        steps={[
+          "강의 PDF 업로드를 먼저 완료합니다.",
+          "자동으로 입력된 lecture_id를 확인합니다.",
+          "문항 수를 지정하고 퀴즈 생성을 실행합니다.",
+        ]}
+      />
       <Card>
         <CardHeader>
           <CardTitle>PDF 업로드</CardTitle>
@@ -102,11 +111,11 @@ export default function InstructorLecturesPage() {
               업로드 완료 lecture_id: <span className="font-medium text-foreground">{uploadedLecture.id}</span>
             </p>
           )}
-          {pdfFile && (
+          {pdfFile ? (
             <p className="mt-1 text-xs text-muted-foreground">
               선택 파일: <span className="font-medium">{pdfFile.name}</span>
             </p>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
