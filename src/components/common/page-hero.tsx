@@ -13,13 +13,16 @@ export function PageHero({ title, description, actions, className }: PageHeroPro
   return (
     <div
       className={cn(
-        "rounded-xl border bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-cyan-500/10 p-5",
+        "relative overflow-hidden rounded-2xl border bg-gradient-to-r from-sky-500/10 via-indigo-500/10 to-cyan-500/10 p-5 md:p-6",
         className,
       )}
     >
-      <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
+      <div className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-primary/15 blur-3xl" />
+      <div className="relative">
+        <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground md:text-[15px]">{description}</p>
+        {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
+      </div>
     </div>
   );
 }

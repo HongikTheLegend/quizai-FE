@@ -21,9 +21,9 @@ export default function InstructorDashboardPage() {
         }
       />
       <div className="grid gap-4 md:grid-cols-3">
-        <StatTile title="내 강의 수" description="업로드 완료된 강의 자료" value="0" />
-        <StatTile title="진행 중 세션" description="현재 활성화된 퀴즈 세션" value="0" />
-        <StatTile title="평균 정답률" description="최근 7일 기준" value="0%" />
+        <StatTile title="내 강의 수" description="업로드 완료된 강의 자료" value="0" delta="+0 이번 주" />
+        <StatTile title="진행 중 세션" description="현재 활성화된 퀴즈 세션" value="0" delta="대기 중" />
+        <StatTile title="평균 정답률" description="최근 7일 기준" value="0%" delta="+0.0%" />
       </div>
     </section>
   );

@@ -21,9 +21,9 @@ export default function AdminDashboardPage() {
         }
       />
       <div className="grid gap-4 md:grid-cols-3">
-        <StatTile title="전체 사용자" description="학생/교강사/관리자 합계" value="0" />
-        <StatTile title="오늘 세션 수" description="생성된 세션 기준" value="0" />
-        <StatTile title="시스템 상태" description="API/WS 가용성 모니터링" value="정상" />
+        <StatTile title="전체 사용자" description="학생/교강사/관리자 합계" value="0" delta="+0 today" />
+        <StatTile title="오늘 세션 수" description="생성된 세션 기준" value="0" delta="실시간" />
+        <StatTile title="시스템 상태" description="API/WS 가용성 모니터링" value="정상" delta="99.9%" />
       </div>
     </section>
   );

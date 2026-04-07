@@ -16,9 +16,9 @@ export default function StudentDashboardPage() {
         }
       />
       <div className="grid gap-4 md:grid-cols-3">
-        <StatTile title="참여 세션 수" description="누적 퀴즈 세션 참여 횟수" value="0" />
-        <StatTile title="평균 점수" description="최근 응답 결과 기반" value="0점" />
-        <StatTile title="정답률" description="전체 문제 대비" value="0%" />
+        <StatTile title="참여 세션 수" description="누적 퀴즈 세션 참여 횟수" value="0" delta="+0" />
+        <StatTile title="평균 점수" description="최근 응답 결과 기반" value="0점" delta="+0점" />
+        <StatTile title="정답률" description="전체 문제 대비" value="0%" delta="+0.0%" />
       </div>
     </section>
   );

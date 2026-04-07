@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Shield, User, Users } from "lucide-react";
+import { BarChart3, BookOpen, LayoutDashboard, Menu, Shield, User, Users } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -17,24 +17,25 @@ interface AppShellProps {
 interface NavItem {
   href: string;
   label: string;
+  icon: ReactNode;
 }
 
 const NAV_MAP: Record<UserRole, NavItem[]> = {
   instructor: [
-    { href: "/instructor/dashboard", label: "대시보드" },
-    { href: "/instructor/lectures", label: "강의 자료" },
-    { href: "/instructor/sessions", label: "세션 관리" },
+    { href: "/instructor/dashboard", label: "대시보드", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { href: "/instructor/lectures", label: "강의 자료", icon: <BookOpen className="h-4 w-4" /> },
+    { href: "/instructor/sessions", label: "세션 관리", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   student: [
-    { href: "/student/dashboard", label: "내 진행현황" },
-    { href: "/student/join", label: "세션 참여" },
-    { href: "/student/sessions", label: "응답 기록" },
+    { href: "/student/dashboard", label: "내 진행현황", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { href: "/student/join", label: "세션 참여", icon: <BookOpen className="h-4 w-4" /> },
+    { href: "/student/sessions", label: "응답 기록", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   admin: [
-    { href: "/admin/dashboard", label: "관리자 대시보드" },
-    { href: "/admin/lectures", label: "강의 관리" },
-    { href: "/admin/sessions", label: "세션 모니터링" },
-    { href: "/admin/users", label: "사용자 관리" },
+    { href: "/admin/dashboard", label: "관리자 대시보드", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { href: "/admin/lectures", label: "강의 관리", icon: <BookOpen className="h-4 w-4" /> },
+    { href: "/admin/sessions", label: "세션 모니터링", icon: <BarChart3 className="h-4 w-4" /> },
+    { href: "/admin/users", label: "사용자 관리", icon: <Users className="h-4 w-4" /> },
   ],
 };
 
@@ -56,12 +57,13 @@ const SidebarLinks = ({
           href={item.href}
           onClick={onSelect}
           className={cn(
-            "block rounded-lg px-3 py-2 text-sm transition-colors",
+            "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
             active
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
         >
+          {item.icon}
           {item.label}
         </Link>
       );
@@ -89,7 +91,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-64 border-r bg-card px-4 py-6 md:block">
+      <aside className="hidden w-64 border-r bg-card/60 px-4 py-6 backdrop-blur md:block">
         <h1 className="mb-2 text-lg font-semibold">QuizAI</h1>
         <div className="mb-6 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
           {roleIcon}
@@ -99,7 +101,7 @@ export function AppShell({ children }: AppShellProps) {
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="flex h-14 items-center border-b px-4 md:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center border-b bg-background/80 px-4 backdrop-blur md:px-6">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger
               render={<Button variant="outline" size="icon" className="md:hidden" />}
