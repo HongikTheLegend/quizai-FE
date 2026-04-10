@@ -1,31 +1,121 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
+import { FormEvent, useState } from "react";
+
+import { LiveQuizStatusPanel } from "@/components/common/live-quiz-status-panel";
 import { PageHero } from "@/components/common/page-hero";
 import { StatTile } from "@/components/common/stat-tile";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useQuizDeadlineCountdown } from "@/hooks/use-quiz-deadline-countdown";
+import { useQuizSocket } from "@/hooks/use-quiz-socket";
+import { AUTH_KEYS } from "@/lib/auth-storage";
 
 export default function AdminSessionsPage() {
+  const [roomIdInput, setRoomIdInput] = useState("");
+  const [wsUrlInput, setWsUrlInput] = useState("");
+  const [activeRoomId, setActiveRoomId] = useState("");
+  const [activeWsUrl, setActiveWsUrl] = useState<string | undefined>(undefined);
+
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem(AUTH_KEYS.accessToken) : null;
+
+  const socket = useQuizSocket({
+    sessionId: activeRoomId,
+    directWsUrl: activeWsUrl,
+    enabled: activeRoomId.length > 0,
+    nickname: "운영-모니터",
+    token: token ?? undefined,
+  });
+
+  const active = socket.liveSession.activeQuiz;
+  const deadlineMs = active ? active.startedAt + active.time_limit * 1000 : null;
+  const remainingSec = useQuizDeadlineCountdown(deadlineMs);
+
+  const handleConnect = (e: FormEvent) => {
+    e.preventDefault();
+    const id = roomIdInput.trim();
+    if (!id) {
+      return;
+    }
+    const ws = wsUrlInput.trim();
+    setActiveRoomId(id);
+    setActiveWsUrl(ws.length > 0 ? ws : undefined);
+  };
+
+  const handleDisconnect = () => {
+    setActiveRoomId("");
+    setActiveWsUrl(undefined);
+  };
+
   return (
-    <section className="space-y-6">
+    <section className="space-y-8">
       <PageHero
-        title="세션 모니터링"
-        description="실시간 세션 참여율과 이상 징후를 추적해 안정적인 수업 운영을 지원합니다."
-        className="from-blue-500/15 via-cyan-500/15 to-indigo-500/15"
+        eyebrow="Operations"
+        title="라이브 퀴즈 모니터링"
+        description="내부 방 ID와(필요 시) WebSocket 주소를 넣으면 교강사 화면과 동일한 실시간 지표·참여자 목록을 볼 수 있습니다."
       />
+
       <div className="grid gap-4 md:grid-cols-3">
-        <StatTile title="활성 세션" description="현재 진행 중" value="6" delta="+2" />
-        <StatTile title="평균 참여율" description="오늘 기준" value="82%" delta="+5%" />
-        <StatTile title="이상 징후" description="네트워크/지연 이슈" value="1건" delta="-2" />
+        <StatTile title="모니터링 중" description="연결된 방" value={activeRoomId ? "ON" : "OFF"} delta="실시간" />
+        <StatTile
+          title="참여 인원"
+          description="마지막 이벤트 기준"
+          value={socket.liveSession.participantCount != null ? String(socket.liveSession.participantCount) : "—"}
+          delta="WS"
+        />
+        <StatTile title="제출" description="집계" value={socket.liveSession.answerProgress ? `${socket.liveSession.answerProgress.answered}/${socket.liveSession.answerProgress.total}` : "—"} delta="서버" />
       </div>
-      <Card>
+
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>실시간 운영 로그</CardTitle>
-          <CardDescription>문제 세션은 우선 확인 후 운영자 조치를 수행합니다.</CardDescription>
+          <CardTitle>방 연결</CardTitle>
+          <CardDescription>
+            방 ID는 교강사 화면의「고급 · 기술 정보」에 있습니다. WebSocket URL을 비우면 환경변수 기본 호스트로 연결합니다.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>• session-203: 평균 응답 지연 1.9s (주의)</p>
-          <p>• session-198: 참여율 95% (정상)</p>
-          <p>• session-187: 브로드캐스트 재시도 2회 (모니터링 중)</p>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleConnect} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <Input
+              value={roomIdInput}
+              onChange={(ev) => setRoomIdInput(ev.target.value)}
+              placeholder="내부 방 ID"
+              className="font-mono text-sm"
+            />
+            <Input
+              value={wsUrlInput}
+              onChange={(ev) => setWsUrlInput(ev.target.value)}
+              placeholder="wss://… (선택)"
+              className="font-mono text-xs"
+            />
+            <div className="flex gap-2">
+              <Button type="submit">연결</Button>
+              <Button type="button" variant="outline" onClick={handleDisconnect} disabled={!activeRoomId}>
+                끊기
+              </Button>
+            </div>
+          </form>
+          {!token ? (
+            <p className="text-xs text-amber-800">로그인 토큰이 없으면 서버가 거절할 수 있습니다. 운영자 계정으로 로그인한 뒤 사용하세요.</p>
+          ) : null}
         </CardContent>
       </Card>
+
+      {activeRoomId ? (
+        <LiveQuizStatusPanel
+          variant="admin"
+          live={socket.liveSession}
+          remainingSec={remainingSec}
+          isConnected={socket.isConnected}
+        />
+      ) : (
+        <Card className="border-dashed shadow-sm">
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            방 ID를 입력하고 연결하면 실시간 패널이 나타납니다.
+          </CardContent>
+        </Card>
+      )}
     </section>
   );
 }

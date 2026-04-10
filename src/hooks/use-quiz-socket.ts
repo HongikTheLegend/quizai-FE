@@ -3,46 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-type QuizSocketEventType =
-  | "session_joined"
-  | "quiz_started"
-  | "answer_update"
-  | "answer_revealed"
-  | "session_ended"
-  | "error";
-
-interface QuizSocketEventMap {
-  session_joined: {
-    participant_count: number;
-    nickname: string;
-  };
-  quiz_started: {
-    quiz_id: string;
-    question: string;
-    options: string[];
-    time_limit: number;
-  };
-  answer_update: {
-    total: number;
-    answered: number;
-    rate: number;
-    distribution: number[];
-  };
-  answer_revealed: {
-    correct_option: number;
-    explanation?: string | null;
-  };
-  session_ended: {
-    session_id: string;
-  };
-  error: {
-    message: string;
-  };
-}
-
-type QuizSocketEvent = {
-  [K in QuizSocketEventType]: { type: K; payload: QuizSocketEventMap[K] };
-}[QuizSocketEventType];
+import {
+  initialLiveSessionState,
+  reduceLiveSessionState,
+  tryParseQuizWsEvent,
+  type LiveSessionState,
+  type QuizWsEvent,
+} from "@/lib/quiz-ws-live-state";
 
 interface UseQuizSocketOptions {
   sessionId: string;
@@ -51,14 +18,15 @@ interface UseQuizSocketOptions {
   wsBaseUrl?: string;
   nickname?: string;
   token?: string;
-  onQuizStarted?: (payload: QuizSocketEventMap["quiz_started"]) => void;
-  onAnswerUpdate?: (payload: QuizSocketEventMap["answer_update"]) => void;
-  onSessionEnded?: (payload: QuizSocketEventMap["session_ended"]) => void;
+  onQuizStarted?: (payload: QuizWsEvent & { type: "quiz_started" }) => void;
+  onAnswerUpdate?: (payload: QuizWsEvent & { type: "answer_update" }) => void;
+  onSessionEnded?: (payload: QuizWsEvent & { type: "session_ended" }) => void;
 }
 
 interface UseQuizSocketResult {
   isConnected: boolean;
-  lastEvent: QuizSocketEvent | null;
+  lastEvent: QuizWsEvent | null;
+  liveSession: LiveSessionState;
   sendAnswer: (quizId: string, selectedOption: number) => void;
   disconnect: () => void;
 }
@@ -79,7 +47,8 @@ export function useQuizSocket({
 }: UseQuizSocketOptions): UseQuizSocketResult {
   const socketRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [lastEvent, setLastEvent] = useState<QuizSocketEvent | null>(null);
+  const [lastEvent, setLastEvent] = useState<QuizWsEvent | null>(null);
+  const [liveSession, setLiveSession] = useState<LiveSessionState>(initialLiveSessionState);
 
   const url = useMemo(() => {
     if (directWsUrl) {
@@ -105,41 +74,48 @@ export function useQuizSocket({
 
   useEffect(() => {
     if (!enabled || !sessionId) {
+      setLiveSession(initialLiveSessionState());
+      setLastEvent(null);
       return;
     }
+
+    setLiveSession(initialLiveSessionState());
+    setLastEvent(null);
 
     const socket = new WebSocket(url);
     socketRef.current = socket;
 
     socket.onopen = () => {
       setIsConnected(true);
-      toast.success("퀴즈 세션에 연결되었습니다.");
+      toast.success("실시간 퀴즈방에 연결되었습니다.");
     };
 
     socket.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data) as QuizSocketEvent;
-        setLastEvent(data);
+        const raw = JSON.parse(event.data) as unknown;
+        const parsed = tryParseQuizWsEvent(raw);
+        if (parsed) {
+          setLastEvent(parsed);
+          setLiveSession((prev) => reduceLiveSessionState(prev, parsed));
 
-        if (data.type === "quiz_started") {
-          onQuizStarted?.(data.payload);
-        }
-
-        if (data.type === "answer_update") {
-          onAnswerUpdate?.(data.payload);
-        }
-
-        if (data.type === "session_ended") {
-          onSessionEnded?.(data.payload);
-          toast.info("세션이 종료되었습니다.");
+          if (parsed.type === "quiz_started") {
+            onQuizStarted?.(parsed);
+          }
+          if (parsed.type === "answer_update") {
+            onAnswerUpdate?.(parsed);
+          }
+          if (parsed.type === "session_ended") {
+            onSessionEnded?.(parsed);
+            toast.info("이번 퀴즈가 종료되었습니다.");
+          }
         }
       } catch {
-        toast.error("실시간 이벤트 파싱에 실패했습니다.");
+        toast.error("실시간 알림을 읽는 데 문제가 있었습니다.");
       }
     };
 
     socket.onerror = () => {
-      toast.error("웹소켓 연결 오류가 발생했습니다.");
+      toast.error("연결이 불안정합니다. 새로고침 후 다시 시도해주세요.");
     };
 
     socket.onclose = () => {
@@ -164,7 +140,7 @@ export function useQuizSocket({
     const socket = socketRef.current;
 
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      toast.error("연결이 준비되지 않았습니다.");
+      toast.error("아직 퀴즈방에 완전히 연결되지 않았어요. 잠시 후 다시 눌러주세요.");
       return;
     }
 
@@ -180,6 +156,7 @@ export function useQuizSocket({
   return {
     isConnected,
     lastEvent,
+    liveSession,
     sendAnswer,
     disconnect,
   };

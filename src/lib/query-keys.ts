@@ -22,4 +22,7 @@ export const queryKeys = {
     instructor: ["dashboard", "instructor"] as const,
     admin: ["dashboard", "admin"] as const,
   },
+  student: {
+    myQuizResults: ["student", "me", "quiz-results"] as const,
+  },
 };

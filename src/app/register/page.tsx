@@ -5,23 +5,22 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 
+import { AuthRolePicker } from "@/components/auth/auth-role-picker";
 import { useRegisterMutation } from "@/hooks/api/use-register-mutation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getRoleHomePath, saveAuthSession } from "@/lib/auth-storage";
-import type { AuthRequest } from "@/types/api";
-
-type RegisterRole = "instructor" | "student";
+import type { AuthRequest, UserRole } from "@/types/api";
 
 export default function RegisterPage() {
   const router = useRouter();
   const registerMutation = useRegisterMutation();
+  const [role, setRole] = useState<UserRole>("student");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<RegisterRole>("student");
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,65 +39,66 @@ export default function RegisterPage() {
       };
 
       const data = await registerMutation.mutateAsync(payload);
-      saveAuthSession(data.user, data.tokens);
+      const user = { ...data.user, role };
+      saveAuthSession(user, data.tokens);
       toast.success("회원가입이 완료되었습니다.");
-      router.push(getRoleHomePath(data.user.role));
+      router.push(getRoleHomePath(role));
     } catch {
       // apiRequest에서 토스트를 처리합니다.
     }
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-md items-center">
+    <div className="mx-auto flex min-h-[calc(100vh-0px)] max-w-md flex-col justify-center px-4 py-10">
+      <p className="mb-4 text-center">
+        <Link
+          href="/"
+          className="text-sm font-semibold bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent hover:opacity-90"
+        >
+          ← QuizAI 홈
+        </Link>
+      </p>
       <Card className="w-full">
         <CardHeader>
           <CardTitle>QuizAI 회원가입</CardTitle>
-          <CardDescription>수강생 또는 교강사 계정을 생성합니다.</CardDescription>
+          <CardDescription>역할을 고른 뒤 정보를 입력하세요.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="이름"
-              required
-            />
-            <Input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="이메일"
-              required
-            />
-            <Input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="비밀번호"
-              required
-            />
-            <Input
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="비밀번호 확인"
-              required
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={role === "student" ? "default" : "outline"}
-                onClick={() => setRole("student")}
-              >
-                수강생
-              </Button>
-              <Button
-                type="button"
-                variant={role === "instructor" ? "default" : "outline"}
-                onClick={() => setRole("instructor")}
-              >
-                교강사
-              </Button>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <AuthRolePicker value={role} onChange={setRole} disabled={registerMutation.isPending} />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">2. 프로필</p>
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="이름"
+                required
+                autoComplete="name"
+              />
+              <Input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="이메일"
+                required
+                autoComplete="email"
+              />
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="비밀번호"
+                required
+                autoComplete="new-password"
+              />
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="비밀번호 확인"
+                required
+                autoComplete="new-password"
+              />
             </div>
             <Button type="submit" disabled={registerMutation.isPending} className="w-full">
               {registerMutation.isPending ? "가입 중..." : "회원가입"}
@@ -110,6 +110,10 @@ export default function RegisterPage() {
               로그인
             </Link>
           </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            가입 응답과 관계없이 선택한 역할로 첫 화면이 열립니다. 운영자 계정은 서버에서 허용된 경우에만 API가
+            통과합니다.
+          </p>
         </CardContent>
       </Card>
     </div>

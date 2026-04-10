@@ -3,13 +3,13 @@
 import { FormEvent, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { PageHero } from "@/components/common/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PageHero } from "@/components/common/page-hero";
-import { Input } from "@/components/ui/input";
-import { useUploadLectureMutation } from "@/hooks/api/use-upload-lecture-mutation";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useGenerateQuizMutation } from "@/hooks/api/use-generate-quiz-mutation";
+import { useUploadLectureMutation } from "@/hooks/api/use-upload-lecture-mutation";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { GenerateQuizRequest, Lecture, QuizQuestion } from "@/types/api";
 
 export default function InstructorLecturesPage() {
@@ -17,6 +17,7 @@ export default function InstructorLecturesPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [lectureId, setLectureId] = useState("");
   const [count, setCount] = useState("5");
+  const [extraCount, setExtraCount] = useState("5");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [quizSetId, setQuizSetId] = useState("");
   const [uploadedLecture, setUploadedLecture] = useState<Lecture | null>(null);
@@ -25,6 +26,8 @@ export default function InstructorLecturesPage() {
   const uploadLectureMutation = useUploadLectureMutation();
   const generateQuizMutation = useGenerateQuizMutation();
 
+  const isBusy = uploadLectureMutation.isPending || generateQuizMutation.isPending;
+
   const aiKeywords = useMemo(
     () =>
       uploadedLecture
@@ -32,6 +35,25 @@ export default function InstructorLecturesPage() {
         : ["강의 텍스트 정규화", "키워드 추출", "문항 포맷 최적화"],
     [uploadedLecture],
   );
+
+  const runGenerate = async (
+    lecId: string,
+    quizCount: number,
+    mode: "replace" | "append",
+  ) => {
+    const payload: GenerateQuizRequest = {
+      lecture_id: lecId,
+      count: quizCount,
+    };
+    const data = await generateQuizMutation.mutateAsync(payload);
+    setQuizSetId(data.quiz_set_id);
+    if (mode === "replace") {
+      setQuestions(data.quizzes);
+    } else {
+      setQuestions((prev) => [...prev, ...data.quizzes]);
+    }
+    return data;
+  };
 
   const handleUploadLecture = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -44,6 +66,9 @@ export default function InstructorLecturesPage() {
       return;
     }
 
+    const n = Number(count);
+    const quizCount = Number.isFinite(n) && n >= 1 ? Math.min(20, n) : 5;
+
     try {
       const lecture = await uploadLectureMutation.mutateAsync({
         file: pdfFile,
@@ -51,27 +76,46 @@ export default function InstructorLecturesPage() {
       });
       setUploadedLecture(lecture);
       setLectureId(lecture.lecture_id);
-      toast.success("PDF 업로드가 완료되었습니다.");
+      toast.success("업로드 완료. 같은 강의로 퀴즈를 자동 생성합니다…");
+
+      await runGenerate(lecture.lecture_id, quizCount, "replace");
+      toast.success(`퀴즈 ${quizCount}문항 생성이 완료되었습니다.`);
     } catch {
-      // api-client 인터셉터에서 토스트를 처리합니다.
+      // api-client / generate 실패 시 토스트는 인터셉터·뮤테이션에서 처리
     }
   };
 
-  const handleGenerate = async (event: FormEvent<HTMLFormElement>) => {
+  const handleGenerateMore = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!lectureId.trim()) {
+      toast.error("강의 ID가 없습니다. 먼저 파일을 업로드하세요.");
+      return;
+    }
+    const n = Number(extraCount);
+    const quizCount = Number.isFinite(n) && n >= 1 ? Math.min(20, n) : 5;
 
     try {
-      const payload: GenerateQuizRequest = {
-        lecture_id: lectureId,
-        count: Number(count),
-      };
-
-      const data = await generateQuizMutation.mutateAsync(payload);
-      setQuestions(data.quizzes);
-      setQuizSetId(data.quiz_set_id);
-      toast.success("AI 퀴즈 생성이 완료되었습니다.");
+      await runGenerate(lectureId.trim(), quizCount, "append");
+      toast.success(`추가로 ${quizCount}문항을 붙였습니다.`);
     } catch {
-      // apiRequest에서 토스트를 처리합니다.
+      // apiRequest에서 토스트
+    }
+  };
+
+  const handleManualRegenerate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!lectureId.trim()) {
+      toast.error("lecture_id를 입력하세요.");
+      return;
+    }
+    const n = Number(count);
+    const quizCount = Number.isFinite(n) && n >= 1 ? Math.min(20, n) : 5;
+
+    try {
+      await runGenerate(lectureId.trim(), quizCount, "replace");
+      toast.success("퀴즈를 새로 덮어썼습니다.");
+    } catch {
+      // apiRequest에서 토스트
     }
   };
 
@@ -90,19 +134,18 @@ export default function InstructorLecturesPage() {
   return (
     <section className="space-y-6">
       <PageHero
-        title="AI Magic Quiz Builder"
-        description="강의 파일을 올리면 AI가 자동으로 퀴즈를 생성하고, 바로 리뷰/수정까지 끝낼 수 있습니다."
+        eyebrow="AI Builder"
+        title="한 번 업로드하면 퀴즈까지 이어집니다"
+        description="PDF와 강의 제목만 올리면 업로드 직후 같은 강의(lecture)에 대해 AI 퀴즈가 자동으로 생성됩니다. 부족하면 같은 강의로 문항만 추가 생성할 수 있어요."
         actions={
-          <>
-            <Button type="button" onClick={() => window.location.assign("/instructor/sessions")}>
-              실시간 분석 보기
-            </Button>
-          </>
+          <Button type="button" onClick={() => window.location.assign("/instructor/sessions")}>
+            라이브 퀴즈로 이동
+          </Button>
         }
       />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card
-          className={`border-2 ${dragOver ? "border-blue-500 bg-blue-50/60" : "border-dashed border-slate-300 bg-white"}`}
+          className={`border-2 ${dragOver ? "border-primary bg-primary/5" : "border-dashed border-border bg-card"}`}
           onDragOver={(event) => {
             event.preventDefault();
             setDragOver(true);
@@ -121,8 +164,10 @@ export default function InstructorLecturesPage() {
           }}
         >
           <CardHeader>
-            <CardTitle>1) 파일 업로드</CardTitle>
-            <CardDescription>PDF/TXT를 드래그 앤 드롭하거나 파일 선택으로 업로드하세요.</CardDescription>
+            <CardTitle>1) 강의 업로드 → 자동 퀴즈</CardTitle>
+            <CardDescription>
+              제목·파일·첫 생성 문항 수를 정한 뒤 업로드하면, 완료 즉시 퀴즈 생성 API가 호출됩니다.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleUploadLecture} className="space-y-3">
@@ -132,14 +177,29 @@ export default function InstructorLecturesPage() {
                 placeholder="강의 제목"
                 required
               />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">첫 자동 생성 문항 수 (1–20)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={count}
+                  onChange={(event) => setCount(event.target.value)}
+                  required
+                />
+              </div>
               <Input
                 type="file"
                 accept="application/pdf,text/plain,.docx"
                 onChange={(event) => setPdfFile(event.target.files?.[0] ?? null)}
                 required
               />
-              <Button type="submit" disabled={uploadLectureMutation.isPending} className="w-full">
-                {uploadLectureMutation.isPending ? "업로드 중..." : "업로드 시작"}
+              <Button type="submit" disabled={isBusy} className="w-full">
+                {uploadLectureMutation.isPending
+                  ? "업로드 중…"
+                  : generateQuizMutation.isPending
+                    ? "퀴즈 자동 생성 중…"
+                    : "업로드 후 퀴즈 자동 생성"}
               </Button>
             </form>
             <p className="mt-2 text-xs text-muted-foreground">
@@ -150,21 +210,29 @@ export default function InstructorLecturesPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>2) AI 분석 상태</CardTitle>
-            <CardDescription>Claude가 강의 내용을 분석해 퀴즈를 구성합니다.</CardDescription>
+            <CardTitle>2) 진행 상태</CardTitle>
+            <CardDescription>업로드와 퀴즈 생성이 한 흐름으로 이어집니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm font-medium">
-              {generateQuizMutation.isPending
-                ? "AI가 강의 내용을 분석 중입니다..."
-                : "분석 대기 중입니다. lecture_id 입력 후 생성하세요."}
+              {uploadLectureMutation.isPending
+                ? "파일을 서버에 올리는 중…"
+                : generateQuizMutation.isPending
+                  ? "같은 강의에 대해 AI가 문항을 만들고 있어요…"
+                  : uploadedLecture
+                    ? "준비됨. 아래에서 문항을 더 붙이거나 덮어쓸 수 있어요."
+                    : "업로드하면 자동으로 퀴즈 생성이 시작됩니다."}
             </p>
             <div className="space-y-2">
               {aiKeywords.map((keyword) => (
                 <div key={keyword} className="flex items-center justify-between rounded-lg border p-2 text-sm">
                   <span>{keyword}</span>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
-                    {generateQuizMutation.isPending ? "processing" : "ready"}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      generateQuizMutation.isPending ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {generateQuizMutation.isPending ? "running" : "idle"}
                   </span>
                 </div>
               ))}
@@ -173,38 +241,64 @@ export default function InstructorLecturesPage() {
         </Card>
       </div>
 
-      <Card className="border-blue-100">
+      <Card className="border-primary/20">
         <CardHeader>
-          <CardTitle>3) 퀴즈 생성</CardTitle>
-          <CardDescription>업로드된 lecture_id 또는 기존 ID로 AI 퀴즈를 생성합니다.</CardDescription>
+          <CardTitle>3) 같은 강의로 더 만들기 (선택)</CardTitle>
+          <CardDescription>
+            업로드는 한 번만. 추가 분량이 필요하면 lecture_id는 그대로 두고 문항만 더 뽑습니다.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleGenerate} className="grid gap-3 md:grid-cols-3">
+        <CardContent className="space-y-6">
+          <form onSubmit={handleGenerateMore} className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
             <Input
               value={lectureId}
               onChange={(event) => setLectureId(event.target.value)}
-              placeholder="lecture_id"
-              required
+              placeholder="lecture_id (업로드 시 자동 입력)"
+              className="font-mono text-sm"
             />
             <Input
               type="number"
               min={1}
               max={20}
-              value={count}
-              onChange={(event) => setCount(event.target.value)}
-              required
+              value={extraCount}
+              onChange={(event) => setExtraCount(event.target.value)}
+              title="추가 문항 수"
             />
-            <Button type="submit" disabled={generateQuizMutation.isPending || !lectureId.trim()}>
-              {generateQuizMutation.isPending ? "생성 중..." : "퀴즈 생성"}
+            <Button type="submit" disabled={isBusy || !lectureId.trim()}>
+              {generateQuizMutation.isPending ? "생성 중…" : "문항 더 붙이기"}
             </Button>
           </form>
+
+          <div className="border-t border-border/80 pt-4">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">다시 처음부터 덮어쓰기</p>
+            <form onSubmit={handleManualRegenerate} className="grid gap-3 md:grid-cols-[1fr_100px_auto]">
+              <Input
+                value={lectureId}
+                onChange={(event) => setLectureId(event.target.value)}
+                placeholder="동일 lecture_id"
+                className="font-mono text-sm"
+              />
+              <Input
+                type="number"
+                min={1}
+                max={20}
+                value={count}
+                onChange={(event) => setCount(event.target.value)}
+              />
+              <Button type="submit" variant="outline" disabled={isBusy || !lectureId.trim()}>
+                전체 새로 생성
+              </Button>
+            </form>
+          </div>
+
           {uploadedLecture ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              업로드 완료 lecture_id: <span className="font-medium">{uploadedLecture.lecture_id}</span>
+            <p className="text-xs text-muted-foreground">
+              현재 강의: <span className="font-medium text-foreground">{uploadedLecture.title}</span> ·{" "}
+              <span className="font-mono">{uploadedLecture.lecture_id}</span>
             </p>
           ) : null}
           {quizSetId ? (
-            <p className="mt-1 text-xs text-blue-700">생성된 quiz_set_id: {quizSetId}</p>
+            <p className="text-xs text-primary">마지막 quiz_set_id: {quizSetId}</p>
           ) : null}
         </CardContent>
       </Card>
@@ -212,7 +306,7 @@ export default function InstructorLecturesPage() {
       <Card>
         <CardHeader>
           <CardTitle>퀴즈 리뷰</CardTitle>
-          <CardDescription>생성된 퀴즈를 즉시 수정/삭제하고 세션으로 넘기세요.</CardDescription>
+          <CardDescription>생성된 퀴즈를 다듬은 뒤, 라이브 퀴즈 화면에서 방을 열어 수업에 사용하세요.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {generateQuizMutation.isPending ? (
@@ -222,8 +316,10 @@ export default function InstructorLecturesPage() {
               <Skeleton className="h-24 w-full" />
             </div>
           ) : questions.length > 0 ? (
-            questions.map((question) => (
-              <article key={question.id} className="rounded-xl border bg-white p-4">
+            <>
+              <p className="text-sm text-muted-foreground">총 {questions.length}문항</p>
+              {questions.map((question) => (
+              <article key={question.id} className="rounded-xl border bg-card p-4">
                 <div className="flex items-start justify-between gap-2">
                   {editingQuestionId === question.id ? (
                     <Input
@@ -264,10 +360,11 @@ export default function InstructorLecturesPage() {
                   ))}
                 </ul>
               </article>
-            ))
+              ))}
+            </>
           ) : (
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              생성된 퀴즈가 없습니다.
+              아직 생성된 퀴즈가 없습니다. 위에서 업로드하면 자동으로 채워집니다.
             </div>
           )}
         </CardContent>

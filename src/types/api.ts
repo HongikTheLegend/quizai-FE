@@ -23,8 +23,9 @@ export interface AuthResponse {
 export interface AuthRequest {
   email: string;
   password: string;
-  name?: string; // register only
-  role?: UserRole; // register only
+  name?: string;
+  /** 회원가입 시 필수에 가깝게 쓰고, 로그인 시에는 일부 서버/프록시가 무시할 수 있습니다. */
+  role?: UserRole;
 }
 
 export interface Lecture {
@@ -116,6 +117,19 @@ export interface SessionStudentResult {
   score: number;
   grade: "excellent" | "needs_practice" | "needs_review";
   answers: SessionStudentAnswer[];
+}
+
+/** 내 계정 기준 참여 퀴즈 목록 (GET /students/me/quiz-results 등). */
+export interface StudentMyQuizSummary {
+  session_id: string;
+  title?: string;
+  attended_at?: string;
+  my_score?: number;
+  grade?: SessionStudentResult["grade"];
+}
+
+export interface StudentMyQuizResultsResponse {
+  results: StudentMyQuizSummary[];
 }
 
 export interface SessionResult {

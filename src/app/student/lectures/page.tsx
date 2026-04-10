@@ -30,16 +30,17 @@ export default function StudentLecturesPage() {
   return (
     <section className="space-y-6">
       <PageHero
+        eyebrow="Catalog"
         title="수업 신청"
-        description="세션에 참여하려면 먼저 해당 강의에 수강 신청이 되어 있어야 합니다. 아래 목록에서 신청할 수 있습니다."
+        description="퀴즈방에 들어가기 전, 먼저 들을 강의를 신청해 주세요. 신청이 완료되면 강사님이 연 라이브 퀴즈에 참여할 수 있습니다."
         actions={
           <Link href="/student/join" className={cn(buttonVariants({ variant: "outline" }))}>
-            세션 참여로 이동
+            퀴즈방 입장으로 이동
           </Link>
         }
       />
 
-      <Card className="border-dashed bg-white">
+      <Card className="border-dashed border-border/90 bg-card/80 shadow-sm">
         <CardHeader>
           <CardTitle>열려 있는 강의</CardTitle>
           <CardDescription>

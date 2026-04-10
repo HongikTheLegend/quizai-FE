@@ -5,15 +5,17 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 
+import { AuthRolePicker } from "@/components/auth/auth-role-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useLoginMutation } from "@/hooks/api/use-login-mutation";
 import { getRoleHomePath, saveAuthSession } from "@/lib/auth-storage";
-import type { AuthRequest } from "@/types/api";
+import type { AuthRequest, UserRole } from "@/types/api";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [role, setRole] = useState<UserRole>("student");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const loginMutation = useLoginMutation();
@@ -22,40 +24,55 @@ export default function LoginPage() {
     event.preventDefault();
 
     try {
-      const payload: AuthRequest = { email, password };
+      const payload: AuthRequest = { email, password, role };
       const data = await loginMutation.mutateAsync(payload);
-      saveAuthSession(data.user, data.tokens);
+      const user = { ...data.user, role };
+      saveAuthSession(user, data.tokens);
 
       toast.success("로그인되었습니다.");
-      router.push(getRoleHomePath(data.user.role));
+      router.push(getRoleHomePath(role));
     } catch {
       // apiRequest에서 토스트를 처리합니다.
     }
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-md items-center">
+    <div className="mx-auto flex min-h-[calc(100vh-0px)] max-w-md flex-col justify-center px-4 py-10">
+      <p className="mb-4 text-center">
+        <Link
+          href="/"
+          className="text-sm font-semibold bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-transparent hover:opacity-90"
+        >
+          ← QuizAI 홈
+        </Link>
+      </p>
       <Card className="w-full">
         <CardHeader>
           <CardTitle>QuizAI 로그인</CardTitle>
-          <CardDescription>강의/세션 관리를 위해 로그인하세요.</CardDescription>
+          <CardDescription>역할을 고른 뒤 이메일로 로그인하세요.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="이메일"
-              required
-            />
-            <Input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="비밀번호"
-              required
-            />
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <AuthRolePicker value={role} onChange={setRole} disabled={loginMutation.isPending} />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">2. 계정 정보</p>
+              <Input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="이메일"
+                required
+                autoComplete="email"
+              />
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="비밀번호"
+                required
+                autoComplete="current-password"
+              />
+            </div>
             <Button type="submit" disabled={loginMutation.isPending} className="w-full">
               {loginMutation.isPending ? "로그인 중..." : "로그인"}
             </Button>
@@ -67,9 +84,7 @@ export default function LoginPage() {
             </Link>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            API가 꺼져 있어 프록시 모의 응답을 쓰는 경우, 이메일에{" "}
-            <span className="font-medium text-foreground">instructor</span> 또는{" "}
-            <span className="font-medium text-foreground">admin</span>이 포함되면 해당 역할로 로그인됩니다.
+            선택한 역할로 메뉴와 화면이 열립니다. 실제 API 권한은 서버·토큰과 일치해야 모든 기능이 동작합니다.
           </p>
         </CardContent>
       </Card>

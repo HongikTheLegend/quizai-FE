@@ -1,5 +1,5 @@
-import { RoleRedirect } from "@/components/auth/role-redirect";
+import { HomeLanding } from "@/components/marketing/home-landing";
 
 export default function Home() {
-  return <RoleRedirect />;
+  return <HomeLanding />;
 }

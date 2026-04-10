@@ -10,7 +10,12 @@ interface AuthGuardProps {
   children: ReactNode;
 }
 
-const PUBLIC_ROUTES = ["/login", "/register"];
+const isMarketingOrAuthPath = (pathname: string): boolean => {
+  if (pathname === "/") {
+    return true;
+  }
+  return pathname.startsWith("/login") || pathname.startsWith("/register");
+};
 
 const ROLE_ROUTES: Record<UserRole, string[]> = {
   instructor: ["/instructor"],
@@ -27,10 +32,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const isPublicRoute = useMemo(
-    () => PUBLIC_ROUTES.some((route) => pathname.startsWith(route)),
-    [pathname],
-  );
+  const isPublicRoute = useMemo(() => isMarketingOrAuthPath(pathname), [pathname]);
 
   useEffect(() => {
     const token = localStorage.getItem(AUTH_KEYS.accessToken);

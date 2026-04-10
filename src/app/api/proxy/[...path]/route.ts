@@ -16,16 +16,27 @@ const buildTargetUrl = (path: string[], searchParams: URLSearchParams): string =
   return `${API_TARGET}/${normalizedPath}${query ? `?${query}` : ""}`;
 };
 
-const createTokenResponse = (email: string, role: "student" | "instructor" | "admin") => ({
-  access_token: `mock-token-${role}`,
-  token_type: "bearer",
-  user: {
-    id: `mock-${role}-${crypto.randomUUID()}`,
-    email,
-    name: `Mock ${role}`,
-    role,
-  },
-});
+const b64urlJson = (obj: object) =>
+  Buffer.from(JSON.stringify(obj), "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+/** Unsigned JWT-shaped token so the client can read `role` from the payload (same as many real APIs). */
+const createTokenResponse = (email: string, role: "student" | "instructor" | "admin") => {
+  const access_token = `${b64urlJson({ alg: "none", typ: "JWT" })}.${b64urlJson({ sub: `mock-${role}`, email, role })}.x`;
+  return {
+    access_token,
+    token_type: "bearer",
+    user: {
+      id: `mock-${role}-${crypto.randomUUID()}`,
+      email,
+      name: `Mock ${role}`,
+      role,
+    },
+  };
+};
 
 const buildMockResponse = async (request: NextRequest, path: string[]) => {
   const routePath = `/${path.join("/")}`;
@@ -37,13 +48,16 @@ const buildMockResponse = async (request: NextRequest, path: string[]) => {
   }
 
   if (method === "POST" && routePath === "/auth/login") {
-    const body = (await request.json().catch(() => ({}))) as { email?: string };
+    const body = (await request.json().catch(() => ({}))) as { email?: string; role?: string };
     const email = body.email ?? "student@quizai.local";
-    const role = email.includes("admin")
+    const fromBody =
+      body.role === "admin" || body.role === "instructor" || body.role === "student" ? body.role : null;
+    const fromEmail = email.includes("admin")
       ? "admin"
       : email.includes("instructor")
         ? "instructor"
         : "student";
+    const role = fromBody ?? fromEmail;
     return NextResponse.json(createTokenResponse(email, role), { status: 200, headers });
   }
 
@@ -131,6 +145,23 @@ const buildMockResponse = async (request: NextRequest, path: string[]) => {
         status: "waiting",
       },
       { status: 201, headers },
+    );
+  }
+
+  if (method === "GET" && routePath === "/students/me/quiz-results") {
+    return NextResponse.json(
+      {
+        results: [
+          {
+            session_id: "sess_demo_001",
+            title: "머신러닝 기초 라이브 퀴즈",
+            attended_at: new Date().toISOString(),
+            my_score: 72,
+            grade: "needs_practice" as const,
+          },
+        ],
+      },
+      { status: 200, headers },
     );
   }
 

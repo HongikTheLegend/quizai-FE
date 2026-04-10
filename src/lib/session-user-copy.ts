@@ -1,0 +1,48 @@
+import type { UserRole } from "@/types/api";
+
+/** 수강생·강사 화면에 노출할 실시간 연결 상태 (기술 용어 대체). */
+export const liveConnectionLabel = (isConnected: boolean): string =>
+  isConnected ? "실시간 연결됨" : "입장 대기 중";
+
+/** API `Session.status` 등을 사람이 읽는 짧은 문장으로. */
+export const liveRoomPhaseLabel = (apiStatus: string | undefined): string => {
+  const s = (apiStatus ?? "").toLowerCase();
+  if (s === "waiting" || s === "pending") {
+    return "학생 입장 대기";
+  }
+  if (s === "active" || s === "live" || s === "running") {
+    return "진행 중";
+  }
+  if (s === "ended" || s === "closed" || s === "completed") {
+    return "종료됨";
+  }
+  if (!s) {
+    return "준비 중";
+  }
+  return "진행 중";
+};
+
+/** 결과 화면 등에서 성적 등급 표시용. */
+export const gradeLabelKo = (grade: string): string => {
+  switch (grade) {
+    case "excellent":
+      return "우수";
+    case "needs_practice":
+      return "복습 권장";
+    case "needs_review":
+      return "개념 다시 보기";
+    default:
+      return grade;
+  }
+};
+
+export const roleHomeHint = (role: UserRole): string => {
+  switch (role) {
+    case "instructor":
+      return "강의 자료를 올리고, 라이브 퀴즈로 학습을 확인하세요.";
+    case "admin":
+      return "플랫폼 운영 지표와 계정을 한곳에서 관리하세요.";
+    default:
+      return "수업에 신청하고, 참여코드로 퀴즈에 입장하세요.";
+  }
+};

@@ -8,6 +8,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { clearAuthSession, getStoredRole } from "@/lib/auth-storage";
+import { roleHomeHint } from "@/lib/session-user-copy";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/api";
 
@@ -25,14 +26,13 @@ const NAV_MAP: Record<UserRole, NavItem[]> = {
   instructor: [
     { href: "/instructor/dashboard", label: "대시보드", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/instructor/lectures", label: "강의 자료", icon: <BookOpen className="h-4 w-4" /> },
-    { href: "/instructor/sessions", label: "세션 관리", icon: <BarChart3 className="h-4 w-4" /> },
+    { href: "/instructor/sessions", label: "라이브 퀴즈", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   student: [
-    { href: "/student/dashboard", label: "내 진행현황", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { href: "/student/dashboard", label: "내 홈 · 결과", icon: <LayoutDashboard className="h-4 w-4" /> },
     { href: "/student/lectures", label: "수업 신청", icon: <School className="h-4 w-4" /> },
-    { href: "/student/join", label: "세션 참여", icon: <BookOpen className="h-4 w-4" /> },
+    { href: "/student/join", label: "퀴즈방 입장", icon: <BookOpen className="h-4 w-4" /> },
     { href: "/student/play", label: "실시간 퀴즈", icon: <BookOpen className="h-4 w-4" /> },
-    { href: "/student/sessions", label: "응답 기록", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   admin: [
     { href: "/admin/dashboard", label: "관리자 대시보드", icon: <LayoutDashboard className="h-4 w-4" /> },
@@ -62,8 +62,8 @@ const SidebarLinks = ({
           className={cn(
             "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
             active
-              ? "bg-blue-600 text-white shadow-sm"
-              : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+              : "text-muted-foreground hover:bg-muted/80 hover:text-foreground",
           )}
         >
           {item.icon}
@@ -105,20 +105,24 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50/70">
-      <aside className="hidden w-64 border-r bg-white px-4 py-6 md:block">
-        <h1 className="mb-2 text-lg font-bold text-slate-900">
+    <div className="flex min-h-screen">
+      <aside className="hidden w-64 border-r border-border/60 bg-card/75 px-4 py-6 shadow-sm backdrop-blur-md md:block">
+        <h1 className="mb-1 bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-lg font-bold tracking-tight text-transparent">
           QuizAI
         </h1>
-        <div className="mb-6 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
-          {roleIcon}
-          {roleLabel} 모드
+        <p className="mb-4 text-[11px] leading-snug text-muted-foreground">{roleHomeHint(role)}</p>
+        <div className="mb-6 flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">역할</span>
+          <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-border/80 bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground">
+            {roleIcon}
+            {roleLabel}
+          </div>
         </div>
         <SidebarLinks items={navItems} pathname={pathname} />
       </aside>
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-white/95 px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border/70 bg-card/80 px-4 backdrop-blur-md md:px-6">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger
               render={<Button variant="outline" size="icon" className="md:hidden" />}
@@ -136,8 +140,8 @@ export function AppShell({ children }: AppShellProps) {
             </DialogContent>
           </Dialog>
           <div className="flex items-center gap-3">
-            <p className="ml-3 text-sm font-medium text-slate-500">
-              AI 기반 실시간 교육 피드백 플랫폼
+            <p className="ml-3 hidden text-sm font-medium text-muted-foreground sm:block">
+              차세대 실시간 학습 · 피드백 플랫폼
             </p>
             <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
               <LogOut className="mr-1 h-4 w-4" />
@@ -146,7 +150,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 p-4 md:p-8 md:pl-10">{children}</main>
       </div>
     </div>
   );

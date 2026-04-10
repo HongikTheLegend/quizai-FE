@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QuizAI",
-  description: "AI based realtime education feedback platform",
+  title: "QuizAI — 실시간 AI 퀴즈 · 학습 피드백 플랫폼",
+  description:
+    "강의 자료로 AI 퀴즈를 만들고, 참여코드로 라이브 퀴즈를 진행하세요. 교강사·수강생·운영자를 위한 차세대 교실 플랫폼.",
 };
 
 export default function RootLayout({
@@ -25,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ko"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
