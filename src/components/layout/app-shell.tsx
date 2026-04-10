@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { BarChart3, BookOpen, LayoutDashboard, LogOut, Menu, School, Shield, User, Users } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { SiteLogo } from "@/components/common/site-logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { clearAuthSession, getStoredRole } from "@/lib/auth-storage";
@@ -51,7 +52,7 @@ const SidebarLinks = ({
   pathname: string;
   onSelect?: () => void;
 }) => (
-  <nav className="space-y-2">
+  <nav className="space-y-1">
     {items.map((item) => {
       const active = pathname.startsWith(item.href);
       return (
@@ -60,14 +61,21 @@ const SidebarLinks = ({
           href={item.href}
           onClick={onSelect}
           className={cn(
-            "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
             active
-              ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
-              : "text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+              ? "bg-primary/[0.09] text-primary dark:bg-primary/15"
+              : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
           )}
         >
-          {item.icon}
-          {item.label}
+          <span
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+              active ? "bg-primary/15 text-primary" : "bg-muted/80 text-muted-foreground",
+            )}
+          >
+            {item.icon}
+          </span>
+          <span className="leading-snug">{item.label}</span>
         </Link>
       );
     })}
@@ -105,52 +113,73 @@ export function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-64 border-r border-border/60 bg-card/75 px-4 py-6 shadow-sm backdrop-blur-md md:block">
-        <h1 className="mb-1 bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-lg font-bold tracking-tight text-transparent">
-          QuizAI
-        </h1>
-        <p className="mb-4 text-[11px] leading-snug text-muted-foreground">{roleHomeHint(role)}</p>
-        <div className="mb-6 flex flex-col gap-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">역할</span>
-          <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-border/80 bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground">
-            {roleIcon}
-            {roleLabel}
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto flex min-h-screen max-w-[1600px] gap-3 p-3 md:gap-5 md:p-5">
+        <aside className="hidden w-[248px] shrink-0 md:block">
+          <div className="sticky top-5 flex max-h-[calc(100dvh-2.5rem)] flex-col gap-5 overflow-y-auto rounded-[1.25rem] border border-border/55 bg-card/95 p-4 shadow-[0_8px_36px_-14px_rgba(15,23,42,0.14)] backdrop-blur-md dark:bg-card/90 dark:shadow-[0_10px_40px_-12px_rgba(0,0,0,0.5)]">
+            <div className="flex items-center gap-2.5">
+              <SiteLogo size={48} decorative className="rounded-xl" />
+              <div className="min-w-0">
+                <h1 className="bg-gradient-to-r from-primary to-violet-600 bg-clip-text text-base font-bold tracking-tight text-transparent">
+                  QuizAI
+                </h1>
+                <p className="text-[10px] font-medium text-muted-foreground">실시간 퀴즈</p>
+              </div>
+            </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">{roleHomeHint(role)}</p>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/90">역할</span>
+              <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-border/60 bg-muted/50 px-3 py-2 text-xs font-semibold text-foreground">
+                {roleIcon}
+                {roleLabel}
+              </div>
+            </div>
+            <SidebarLinks items={navItems} pathname={pathname} />
           </div>
+        </aside>
+
+        <div className="flex min-h-[calc(100dvh-1.5rem)] min-w-0 flex-1 flex-col gap-3 md:gap-4">
+          <header className="sticky top-3 z-20 md:top-5">
+            <div className="flex h-[52px] items-center justify-between gap-3 rounded-2xl border border-border/55 bg-card/90 px-3 shadow-[0_4px_24px_-10px_rgba(15,23,42,0.1)] backdrop-blur-md dark:bg-card/85 dark:shadow-[0_6px_28px_-10px_rgba(0,0,0,0.45)] md:h-14 md:px-5">
+              <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none md:min-w-0">
+                <Dialog open={open} onOpenChange={setOpen}>
+                  <DialogTrigger
+                    render={<Button variant="outline" size="icon" className="md:hidden" />}
+                  >
+                    <Menu className="h-5 w-5" />
+                    <span className="sr-only">메뉴 열기</span>
+                  </DialogTrigger>
+                  <DialogContent className="w-[min(100%,320px)] gap-5 p-5 sm:max-w-[320px]">
+                    <DialogTitle className="text-base font-semibold">메뉴</DialogTitle>
+                    <SidebarLinks
+                      items={navItems}
+                      pathname={pathname}
+                      onSelect={() => setOpen(false)}
+                    />
+                  </DialogContent>
+                </Dialog>
+                <Link
+                  href="/"
+                  className="flex shrink-0 items-center gap-2 rounded-xl outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+                >
+                  <SiteLogo size={40} className="rounded-lg" />
+                  <span className="sr-only">QuizAI 홈</span>
+                </Link>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                <p className="hidden max-w-[220px] truncate text-xs font-medium text-muted-foreground lg:max-w-none lg:text-sm">
+                  차세대 실시간 학습 · 피드백
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
+                  <LogOut className="mr-1 h-4 w-4" />
+                  로그아웃
+                </Button>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 pb-6 md:pb-8">{children}</main>
         </div>
-        <SidebarLinks items={navItems} pathname={pathname} />
-      </aside>
-
-      <div className="flex min-h-screen flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border/70 bg-card/80 px-4 backdrop-blur-md md:px-6">
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger
-              render={<Button variant="outline" size="icon" className="md:hidden" />}
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">메뉴 열기</span>
-            </DialogTrigger>
-            <DialogContent className="w-[280px] p-4 sm:max-w-[280px]">
-              <DialogTitle className="mb-3">QuizAI 메뉴</DialogTitle>
-              <SidebarLinks
-                items={navItems}
-                pathname={pathname}
-                onSelect={() => setOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
-          <div className="flex items-center gap-3">
-            <p className="ml-3 hidden text-sm font-medium text-muted-foreground sm:block">
-              차세대 실시간 학습 · 피드백 플랫폼
-            </p>
-            <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
-              <LogOut className="mr-1 h-4 w-4" />
-              로그아웃
-            </Button>
-          </div>
-        </header>
-
-        <main className="flex-1 p-4 md:p-8 md:pl-10">{children}</main>
       </div>
     </div>
   );
