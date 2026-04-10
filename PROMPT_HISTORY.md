@@ -151,6 +151,7 @@ https://react.dev/link/hydration-mismatch
 17. 모든 측면에서 확장해서 가져와
 18. 내가 지금까지 입력한 프롬프트를 md파일에 따로 저장하고 입력할때마다 최신화해
 19. https://quizai-be.onrender.com/docs  여기 백엔드 담당자가 배포한 링크인데 우리에 적용해야해
+20. 필요한 백엔드 정보가 더 있어? 이제 프론트엔드 API연결을 마무리지어야해서
 
 ## Update Rule
 
