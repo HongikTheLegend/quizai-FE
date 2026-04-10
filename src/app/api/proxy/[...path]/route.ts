@@ -30,10 +30,14 @@ const proxyRequest = async (
     }
   });
 
+  const shouldHaveBody =
+    request.method !== "GET" && request.method !== "HEAD";
+  const requestBody = shouldHaveBody ? await request.arrayBuffer() : undefined;
+
   const response = await fetch(targetUrl, {
     method: request.method,
     headers,
-    body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+    body: requestBody,
     cache: "no-store",
   });
 
