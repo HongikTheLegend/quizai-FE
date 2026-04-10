@@ -56,7 +56,7 @@ interface UseQuizSocketResult {
 }
 
 const DEFAULT_WS_BASE_URL =
-  process.env.NEXT_PUBLIC_WS_URL?.trim() || "ws://localhost:8000";
+  process.env.NEXT_PUBLIC_WS_URL?.trim() || "wss://quizai-be.onrender.com";
 
 export function useQuizSocket({
   sessionId,

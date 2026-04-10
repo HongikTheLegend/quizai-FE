@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import type { ApiErrorPayload } from "@/types/api";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL?.trim() || "https://quizai-be.onrender.com";
 
 const getAccessToken = (): string | null => {
   if (typeof window === "undefined") {

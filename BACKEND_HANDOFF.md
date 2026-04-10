@@ -24,11 +24,13 @@
 
 `src/lib/api-client.ts`와 `src/hooks/use-quiz-socket.ts`에서 아래 값을 사용합니다.
 
+배포 백엔드 문서: [QuizAI Swagger](https://quizai-be.onrender.com/docs)
+
 `.env.local.example`
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_WS_URL=ws://localhost:8000
+NEXT_PUBLIC_API_URL=https://quizai-be.onrender.com
+NEXT_PUBLIC_WS_URL=wss://quizai-be.onrender.com
 ```
 
 ## 4) API 타입 규약 (프론트 추정 모델)
