@@ -9,19 +9,19 @@ interface StatTileProps {
 
 export function StatTile({ title, description, value, delta }: StatTileProps) {
   return (
-    <Card className="border-slate-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <Card className="border-border/50 transition-transform hover:-translate-y-0.5 hover:shadow-[0_12px_36px_-12px_rgba(15,23,42,0.12)]">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle>{title}</CardTitle>
           {delta ? (
-            <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
               {delta}
             </span>
           ) : null}
         </div>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="text-3xl font-bold tracking-tight">{value}</CardContent>
+      <CardContent className="text-3xl font-bold tracking-tight text-foreground">{value}</CardContent>
     </Card>
   );
 }

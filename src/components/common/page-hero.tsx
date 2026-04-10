@@ -14,7 +14,7 @@ export function PageHero({ eyebrow, title, description, actions, className }: Pa
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-card via-card to-primary/[0.04] p-5 shadow-sm md:p-7",
+        "relative overflow-hidden rounded-[1.35rem] border border-border/50 bg-gradient-to-br from-card via-card to-primary/[0.05] p-6 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.1)] md:p-8 dark:shadow-[0_10px_36px_-12px_rgba(0,0,0,0.45)]",
         className,
       )}
     >

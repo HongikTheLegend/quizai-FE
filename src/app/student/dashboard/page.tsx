@@ -64,7 +64,7 @@ function StudentDashboardInner() {
         <StatTile title="정답률" description="전체 문제 대비" value="82%" delta="+6.5%" />
       </div>
 
-      <Card id="quiz-results" className="scroll-mt-6 border-primary/15 shadow-sm">
+      <Card id="quiz-results" className="scroll-mt-6 border-primary/12 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.09)]">
         <CardHeader>
           <CardTitle>내 퀴즈 결과</CardTitle>
           <CardDescription>
@@ -78,7 +78,7 @@ function StudentDashboardInner() {
           ) : myResultsQuery.isError ? (
             <p className="text-sm text-destructive">목록을 불러오지 못했습니다. 백엔드 경로를 확인해주세요.</p>
           ) : summaries.length === 0 ? (
-            <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+            <div className="rounded-2xl border border-dashed border-border/70 bg-muted/25 p-8 text-center text-sm text-muted-foreground">
               아직 연동된 퀴즈 기록이 없습니다. 라이브 퀴즈에 참여하면 여기에 쌓입니다.
             </div>
           ) : (
@@ -89,10 +89,10 @@ function StudentDashboardInner() {
                     type="button"
                     onClick={() => setSelectedSessionId(row.session_id)}
                     className={cn(
-                      "w-full rounded-xl border p-4 text-left text-sm transition-all",
+                      "w-full rounded-2xl border p-4 text-left text-sm shadow-[0_2px_12px_-4px_rgba(15,23,42,0.06)] transition-all",
                       selectedSessionId === row.session_id
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-border/80 bg-card hover:border-primary/30",
+                        ? "border-primary/50 bg-primary/[0.06] shadow-[0_6px_20px_-8px_rgba(79,70,229,0.2)]"
+                        : "border-border/60 bg-card hover:border-primary/35 hover:shadow-[0_8px_24px_-10px_rgba(15,23,42,0.1)]",
                     )}
                   >
                     <p className="font-semibold text-foreground">{row.title ?? "퀴즈 세션"}</p>
