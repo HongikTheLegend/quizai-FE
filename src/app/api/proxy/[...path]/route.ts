@@ -22,6 +22,30 @@ const WS_ORIGIN = wsOriginFromHttpBase(API_TARGET);
 /** 프록시 목/폴백용 세션 ID. `sess_...` 문자열은 백엔드가 `uuid`로 조회할 때 Postgres 22P02가 납니다. */
 const newMockSessionId = (): string => crypto.randomUUID();
 
+type MockLiveRoom = { session_id: string; ws_url: string };
+
+/**
+ * 목 퀴즈방: POST /sessions/start 가 만든 세션과 POST /sessions/join 이 같은 WebSocket 방을 쓰도록
+ * 참여코드 → 세션을 묶습니다. (이전에는 join 이 매번 새 session_id 를 만들어 수강생만 다른 방에 붙었음)
+ */
+const mockLiveRoomsByJoinCode = new Map<string, MockLiveRoom>();
+
+const registerMockLiveRoom = (joinCode: string, room: MockLiveRoom) => {
+  const k = joinCode.trim().toUpperCase();
+  if (!k) {
+    return;
+  }
+  mockLiveRoomsByJoinCode.set(k, room);
+};
+
+const getMockLiveRoom = (joinCode: string): MockLiveRoom | undefined => {
+  const k = joinCode.trim().toUpperCase();
+  if (!k) {
+    return undefined;
+  }
+  return mockLiveRoomsByJoinCode.get(k);
+};
+
 const FORWARDED_HEADERS = [
   "authorization",
   "content-type",
@@ -165,11 +189,14 @@ const buildMockResponse = async (request: NextRequest, path: string[]) => {
 
   if (method === "POST" && routePath === "/sessions/start") {
     const sessionId = newMockSessionId();
+    const session_code = "A7K3B9";
+    const ws_url = `${WS_ORIGIN}/sessions/${sessionId}/join`;
+    registerMockLiveRoom(session_code, { session_id: sessionId, ws_url });
     return NextResponse.json(
       {
         session_id: sessionId,
-        session_code: "A7K3B9",
-        ws_url: `${WS_ORIGIN}/sessions/${sessionId}/join`,
+        session_code,
+        ws_url,
         status: "waiting",
       },
       { status: 201, headers },
@@ -194,6 +221,26 @@ const buildMockResponse = async (request: NextRequest, path: string[]) => {
   }
 
   if (method === "POST" && routePath === "/sessions/join") {
+    let requestedCode = "";
+    try {
+      const body = (await request.clone().json()) as { session_code?: string };
+      requestedCode = typeof body.session_code === "string" ? body.session_code : "";
+    } catch {
+      // body 없음
+    }
+    const hit = getMockLiveRoom(requestedCode || "A7K3B9");
+    if (hit) {
+      const session_code = (requestedCode || "A7K3B9").trim().toUpperCase();
+      return NextResponse.json(
+        {
+          session_id: hit.session_id,
+          session_code,
+          ws_url: hit.ws_url,
+          status: "active",
+        },
+        { status: 200, headers },
+      );
+    }
     const sessionId = newMockSessionId();
     return NextResponse.json(
       {
@@ -363,6 +410,20 @@ const proxyRequest = async (
       }
     } catch {
       // ignore body parse
+    }
+    const hit = getMockLiveRoom(echoedCode);
+    if (hit) {
+      const res = NextResponse.json(
+        {
+          session_id: hit.session_id,
+          session_code: echoedCode.trim().toUpperCase(),
+          ws_url: hit.ws_url,
+          status: "active",
+        },
+        { status: 200 },
+      );
+      res.headers.set("x-proxy-join-fallback", "1");
+      return res;
     }
     const sessionId = newMockSessionId();
     const res = NextResponse.json(
