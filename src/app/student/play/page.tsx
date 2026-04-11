@@ -11,6 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useQuizDeadlineCountdown } from "@/hooks/use-quiz-deadline-countdown";
 import { useQuizSocket } from "@/hooks/use-quiz-socket";
 import { AUTH_KEYS, getStoredUser } from "@/lib/auth-storage";
+import {
+  liveQuizBroadcastChannelId,
+  type LiveQuizBroadcastMessage,
+  type LiveQuizBroadcastPayload,
+} from "@/lib/live-quiz-broadcast";
+import type { LiveSessionState } from "@/lib/quiz-ws-live-state";
 import { getRememberedJoinNickname, getRememberedSessionWsUrl } from "@/lib/session-ws-url";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -25,6 +31,10 @@ function StudentPlayContent() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [directWsUrl, setDirectWsUrl] = useState<string | undefined>(undefined);
+  /** 교강사 탭이 BroadcastChannel 로 보낸 문항(서버가 학생에게 quiz_started 를 안 줄 때 보조) */
+  const [relayedActive, setRelayedActive] = useState<NonNullable<LiveSessionState["activeQuiz"]> | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!sessionId) {
@@ -32,6 +42,41 @@ function StudentPlayContent() {
       return;
     }
     setDirectWsUrl(getRememberedSessionWsUrl(sessionId));
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || typeof BroadcastChannel === "undefined") {
+      return;
+    }
+    const bc = new BroadcastChannel(liveQuizBroadcastChannelId(sessionId));
+    const handler = (ev: MessageEvent<LiveQuizBroadcastMessage>) => {
+      const d = ev.data;
+      if (!d || typeof d !== "object") {
+        return;
+      }
+      if ("type" in d && d.type === "request_sync") {
+        return;
+      }
+      const p = d as LiveQuizBroadcastPayload;
+      if (p.activeQuiz === null) {
+        setRelayedActive(null);
+        return;
+      }
+      const q = p.activeQuiz;
+      setRelayedActive({
+        quiz_id: q.quiz_id,
+        question: q.question,
+        options: Array.isArray(q.options) ? q.options : [],
+        time_limit: typeof q.time_limit === "number" ? q.time_limit : 30,
+        startedAt: typeof q.startedAt === "number" ? q.startedAt : Date.now(),
+      });
+    };
+    bc.addEventListener("message", handler);
+    bc.postMessage({ type: "request_sync" });
+    return () => {
+      bc.removeEventListener("message", handler);
+      bc.close();
+    };
   }, [sessionId]);
 
   const joinNickname = getRememberedJoinNickname(sessionId);
@@ -44,26 +89,27 @@ function StudentPlayContent() {
     token: token ?? undefined,
   });
 
-  const active = socket.liveSession.activeQuiz;
+  const wsActive = socket.liveSession.activeQuiz;
+  const effectiveActive = wsActive ?? relayedActive;
 
   const currentQuestion = useMemo(() => {
-    if (!active) {
+    if (!effectiveActive) {
       return null;
     }
     return {
-      quiz_id: active.quiz_id,
-      question: active.question,
-      options: active.options,
-      time_limit: active.time_limit,
+      quiz_id: effectiveActive.quiz_id,
+      question: effectiveActive.question,
+      options: effectiveActive.options,
+      time_limit: effectiveActive.time_limit,
     };
-  }, [active]);
+  }, [effectiveActive]);
 
   useEffect(() => {
     setSelectedOption(null);
     setSubmitted(false);
-  }, [active?.quiz_id]);
+  }, [effectiveActive?.quiz_id, effectiveActive?.startedAt]);
 
-  const deadlineMs = active ? active.startedAt + active.time_limit * 1000 : null;
+  const deadlineMs = effectiveActive ? effectiveActive.startedAt + effectiveActive.time_limit * 1000 : null;
   const remainingSec = useQuizDeadlineCountdown(deadlineMs);
 
   const handleSubmit = () => {
@@ -101,7 +147,7 @@ function StudentPlayContent() {
                 remainingSec !== null && remainingSec <= 5 ? "text-destructive" : "text-foreground",
               )}
             >
-              {active ? formatQuizClock(remainingSec) : "—"}
+              {effectiveActive ? formatQuizClock(remainingSec) : "—"}
             </span>
           </div>
           <div className="text-right text-xs text-muted-foreground">
@@ -137,7 +183,7 @@ function StudentPlayContent() {
           <div className="mx-auto w-full max-w-lg">
             {currentQuestion ? (
               <QuizQuestionView
-                key={currentQuestion.quiz_id}
+                key={`${currentQuestion.quiz_id}-${effectiveActive?.startedAt ?? 0}`}
                 variant="student"
                 question={currentQuestion.question}
                 options={currentQuestion.options ?? []}
@@ -149,7 +195,7 @@ function StudentPlayContent() {
                   setSubmitted(false);
                 }}
                 onSubmit={handleSubmit}
-                submitDisabled={!active}
+                submitDisabled={!socket.isConnected || !currentQuestion || submitted}
                 footerNote={submitted ? "제출 완료. 강사 화면에서 집계됩니다." : undefined}
               />
             ) : (
@@ -158,7 +204,7 @@ function StudentPlayContent() {
                   <p className="text-base font-medium text-foreground">문항 대기</p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {socket.isConnected
-                      ? "강사가 문항을 열면 여기에 표시됩니다."
+                      ? "강사가 「다음 문항」을 열면 여기에 표시됩니다. 같은 PC에서 교강사 탭을 켜 두면 화면이 동기화됩니다."
                       : "실시간 서버에 연결하는 중입니다…"}
                   </p>
                 </CardContent>

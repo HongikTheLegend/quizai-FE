@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -23,6 +23,11 @@ import {
   readPersistedInstructorLiveSession,
   writePersistedInstructorLiveSession,
 } from "@/lib/instructor-live-session";
+import {
+  liveQuizBroadcastChannelId,
+  type LiveQuizBroadcastMessage,
+  type LiveQuizBroadcastPayload,
+} from "@/lib/live-quiz-broadcast";
 import { readLastQuizSet, type LastQuizSetInfo } from "@/lib/last-quiz-set";
 import type { QuizWsEvent } from "@/lib/quiz-ws-live-state";
 import { coerceRenderableText } from "@/lib/normalize-quiz-shape";
@@ -168,6 +173,67 @@ function InstructorSessionsPageInner() {
       startedAt: localRoundStartedAt,
     };
   }, [active, localRoundIndex, localQuestions, localRoundStartedAt, timeLimitSec]);
+
+  const displayQuizRef = useRef(displayQuiz);
+  displayQuizRef.current = displayQuiz;
+  const liveBroadcastRef = useRef<BroadcastChannel | null>(null);
+
+  /** 같은 PC 수강생 탭과 문항 동기화(늦게 연 탭은 `request_sync` 로 재요청). */
+  useEffect(() => {
+    if (!sessionId || typeof BroadcastChannel === "undefined") {
+      return;
+    }
+    const bc = new BroadcastChannel(liveQuizBroadcastChannelId(sessionId));
+    liveBroadcastRef.current = bc;
+    const send = () => {
+      const dq = displayQuizRef.current;
+      const payload: LiveQuizBroadcastPayload = dq
+        ? {
+            activeQuiz: {
+              quiz_id: dq.quiz_id,
+              question: dq.question,
+              options: dq.options,
+              time_limit: dq.time_limit,
+              startedAt: dq.startedAt,
+            },
+          }
+        : { activeQuiz: null };
+      bc.postMessage(payload);
+    };
+    send();
+    const onMessage = (ev: MessageEvent<LiveQuizBroadcastMessage>) => {
+      const d = ev.data;
+      if (d && typeof d === "object" && "type" in d && d.type === "request_sync") {
+        send();
+      }
+    };
+    bc.addEventListener("message", onMessage);
+    return () => {
+      liveBroadcastRef.current = null;
+      bc.removeEventListener("message", onMessage);
+      bc.close();
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    const ch = liveBroadcastRef.current;
+    if (!ch) {
+      return;
+    }
+    const dq = displayQuizRef.current;
+    const payload: LiveQuizBroadcastPayload = dq
+      ? {
+          activeQuiz: {
+            quiz_id: dq.quiz_id,
+            question: dq.question,
+            options: dq.options,
+            time_limit: dq.time_limit,
+            startedAt: dq.startedAt,
+          },
+        }
+      : { activeQuiz: null };
+    ch.postMessage(payload);
+  }, [displayQuiz]);
 
   const mergedLiveSession = useMemo(() => {
     const base = socket.liveSession;
