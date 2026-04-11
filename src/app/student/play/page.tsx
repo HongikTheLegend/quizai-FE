@@ -116,7 +116,7 @@ function StudentPlayContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {currentQuestion.options.map((option, index) => (
+              {(currentQuestion.options ?? []).map((option, index) => (
                 <button
                   key={`${currentQuestion.quiz_id}-${index}`}
                   type="button"

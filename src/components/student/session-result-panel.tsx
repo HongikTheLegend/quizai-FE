@@ -26,8 +26,11 @@ export function SessionResultPanel({
     if (!result) {
       return [];
     }
-    return [...result.students].sort((a, b) => b.score - a.score);
+    const rows = result.students ?? [];
+    return [...rows].sort((a, b) => b.score - a.score);
   }, [result]);
+
+  const weakConcepts = result?.weak_concepts ?? [];
 
   const isMe = (studentId: string, nickname: string) =>
     (highlightUserId && studentId === highlightUserId) ||
@@ -68,7 +71,7 @@ export function SessionResultPanel({
         <Card className="border-border/80 shadow-sm">
           <CardContent className="pt-6">
             <p className="text-xs font-medium text-muted-foreground">복습 포인트</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight">{result.weak_concepts.length}개</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight">{weakConcepts.length}개</p>
           </CardContent>
         </Card>
       </div>
@@ -78,7 +81,7 @@ export function SessionResultPanel({
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           많이 틀린 주제는{" "}
           <span className="font-medium text-foreground">
-            {result.weak_concepts.slice(0, 2).join(", ") || "아직 없음"}
+            {weakConcepts.slice(0, 2).join(", ") || "아직 없음"}
           </span>
           입니다.
         </p>

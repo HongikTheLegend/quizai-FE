@@ -60,12 +60,13 @@ export const reduceLiveSessionState = (
     }
     case "quiz_started": {
       const { quiz_id, question, options, time_limit } = event.payload;
+      const safeOptions = Array.isArray(options) ? options : [];
       return {
         ...prev,
         activeQuiz: {
           quiz_id,
           question,
-          options,
+          options: safeOptions,
           time_limit,
           startedAt: Date.now(),
         },

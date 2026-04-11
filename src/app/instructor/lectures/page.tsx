@@ -381,6 +381,16 @@ export default function InstructorLecturesPage() {
                     {uploadedLecture?.title ?? "방금 만든 퀴즈"}
                   </p>
                   <p className="text-sm text-muted-foreground">총 {questions.length}문항 · 수업에서 바로 쓸 수 있어요.</p>
+                  {uploadedLecture ? (
+                    <p className="mt-2 break-all font-mono text-xs text-foreground">
+                      <span className="font-sans font-medium text-muted-foreground">강의 코드 </span>
+                      {uploadedLecture.lecture_id}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 break-all font-mono text-xs text-foreground">
+                    <span className="font-sans font-medium text-muted-foreground">퀴즈 세트 번호 </span>
+                    {quizSetId}
+                  </p>
                 </div>
                 <Link
                   href={`/instructor/sessions?quiz_set_id=${encodeURIComponent(quizSetId)}`}
@@ -388,11 +398,6 @@ export default function InstructorLecturesPage() {
                 >
                   이 퀴즈로 라이브 방 열기
                 </Link>
-              </div>
-              <div className="mt-3">
-                <TechDetails title="퀴즈 세트 번호">
-                  <p className="break-all font-mono text-[11px] text-muted-foreground">{quizSetId}</p>
-                </TechDetails>
               </div>
             </div>
           ) : null}

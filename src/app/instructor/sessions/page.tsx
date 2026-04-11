@@ -200,7 +200,10 @@ function InstructorSessionsPageInner() {
                       {lastQuizHint.lectureTitle ?? "퀴즈 빌더에서 만든 세트"}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      문항 {lastQuizHint.totalQuestions}개가 연결돼 있어요. 퀴즈 빌더에서 이어서 온 경우 자동으로 채워집니다.
+                      문항 {lastQuizHint.totalQuestions}개가 연결돼 있어요.
+                    </p>
+                    <p className="mt-2 break-all font-mono text-xs leading-relaxed text-foreground">
+                      퀴즈 세트 번호 {lastQuizHint.quizSetId}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -255,7 +258,7 @@ function InstructorSessionsPageInner() {
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">참여코드</p>
-                  <p className="mt-1 font-mono text-3xl font-bold tracking-[0.25em] text-primary md:text-4xl">
+                  <p className="mt-1 break-all font-mono text-2xl font-bold tracking-[0.12em] text-primary sm:text-3xl md:text-4xl">
                     {session.session_code}
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">

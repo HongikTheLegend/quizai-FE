@@ -31,8 +31,9 @@ export function LiveQuizStatusPanel({
   variant,
   className,
 }: LiveQuizStatusPanelProps) {
+  const roster = live.participants ?? [];
   const headcount =
-    live.participantCount ?? (live.participants.length > 0 ? live.participants.length : null);
+    live.participantCount ?? (roster.length > 0 ? roster.length : null);
   const ap = live.answerProgress;
   const pct =
     ap && ap.total > 0 ? Math.min(100, Math.round((ap.answered / ap.total) * 100)) : null;
@@ -113,14 +114,14 @@ export function LiveQuizStatusPanel({
                 </tr>
               </thead>
               <tbody>
-                {live.participants.length === 0 ? (
+                {roster.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">
-                      입장 이벤트가 오면 목록이 채워집니다. (서버가 `session_joined`를 보내야 합니다.)
+                      아직 표시할 참여자가 없습니다.
                     </td>
                   </tr>
                 ) : (
-                  live.participants.map((p) => (
+                  roster.map((p) => (
                     <tr key={p.nickname} className="border-t border-border/50">
                       <td className="px-3 py-2 font-medium">{p.nickname}</td>
                       <td className="px-3 py-2 text-muted-foreground">
@@ -147,10 +148,6 @@ export function LiveQuizStatusPanel({
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-            ‘이번 문항’은 서버가 <code className="rounded bg-muted px-1">participant_answer</code> 이벤트를 보낼 때
-            정확해집니다. 없으면 입장·집계만 표시됩니다.
-          </p>
         </div>
       ) : null}
     </div>
