@@ -13,7 +13,10 @@ interface AppProvidersProps {
 }
 
 const useBareChrome = (pathname: string): boolean =>
-  pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/register");
+  pathname === "/" ||
+  pathname.startsWith("/login") ||
+  pathname.startsWith("/register") ||
+  pathname.startsWith("/student/play");
 
 function AppChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();

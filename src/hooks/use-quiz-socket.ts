@@ -29,10 +29,14 @@ interface UseQuizSocketResult {
   liveSession: LiveSessionState;
   sendAnswer: (quizId: string, selectedOption: number) => void;
   disconnect: () => void;
+  connectionAttempt: number;
 }
 
 const DEFAULT_WS_BASE_URL =
   process.env.NEXT_PUBLIC_WS_URL?.trim() || "wss://quizai-be.onrender.com";
+
+const MAX_RECONNECT_ATTEMPTS = 12;
+const INITIAL_BACKOFF_MS = 800;
 
 export function useQuizSocket({
   sessionId,
@@ -46,9 +50,13 @@ export function useQuizSocket({
   onSessionEnded,
 }: UseQuizSocketOptions): UseQuizSocketResult {
   const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shownConnectToastRef = useRef(false);
+  const shownFailToastRef = useRef(false);
   const [isConnected, setIsConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<QuizWsEvent | null>(null);
   const [liveSession, setLiveSession] = useState<LiveSessionState>(initialLiveSessionState);
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
 
   const url = useMemo(() => {
     const params = new URLSearchParams();
@@ -75,10 +83,14 @@ export function useQuizSocket({
       }
     }
 
-    return `${wsBaseUrl}/sessions/${sessionId}/join${query ? `?${query}` : ""}`;
+    return `${wsBaseUrl}/sessions/${encodeURIComponent(sessionId)}/join${query ? `?${query}` : ""}`;
   }, [directWsUrl, nickname, sessionId, token, wsBaseUrl]);
 
   const disconnect = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     socketRef.current?.close();
     socketRef.current = null;
     setIsConnected(false);
@@ -88,54 +100,125 @@ export function useQuizSocket({
     if (!enabled || !sessionId) {
       setLiveSession(initialLiveSessionState());
       setLastEvent(null);
+      setConnectionAttempt(0);
+      shownConnectToastRef.current = false;
+      shownFailToastRef.current = false;
       return;
     }
 
     setLiveSession(initialLiveSessionState());
     setLastEvent(null);
+    shownConnectToastRef.current = false;
+    shownFailToastRef.current = false;
+    setConnectionAttempt(0);
 
-    const socket = new WebSocket(url);
-    socketRef.current = socket;
+    let cancelled = false;
+    let attempt = 0;
 
-    socket.onopen = () => {
-      setIsConnected(true);
-      toast.success("실시간 퀴즈방에 연결되었습니다.");
+    const attachHandlers = (socket: WebSocket) => {
+      socket.onmessage = (event) => {
+        try {
+          const raw = JSON.parse(event.data) as unknown;
+          const parsed = tryParseQuizWsEvent(raw);
+          if (parsed) {
+            setLastEvent(parsed);
+            setLiveSession((prev) => reduceLiveSessionState(prev, parsed));
+
+            if (parsed.type === "quiz_started") {
+              onQuizStarted?.(parsed);
+            }
+            if (parsed.type === "answer_update") {
+              onAnswerUpdate?.(parsed);
+            }
+            if (parsed.type === "session_ended") {
+              onSessionEnded?.(parsed);
+              toast.info("이번 퀴즈가 종료되었습니다.");
+            }
+          }
+        } catch {
+          toast.error("실시간 알림을 읽는 데 문제가 있었습니다.");
+        }
+      };
+
+      socket.onerror = () => {
+        // 실패는 onclose + 재시도로 처리 (중복 토스트 방지)
+      };
+
+      socket.onclose = () => {
+        setIsConnected(false);
+        socketRef.current = null;
+        if (cancelled) {
+          return;
+        }
+        attempt += 1;
+        setConnectionAttempt(attempt);
+        if (attempt > MAX_RECONNECT_ATTEMPTS) {
+          if (!shownFailToastRef.current) {
+            shownFailToastRef.current = true;
+            toast.error(
+              "실시간 퀴즈 서버에 연결하지 못했습니다. Render가 깨어나는 중이면 잠시 후 새로고침하세요. (WebSocket 허용·같은 세션 ID인지 백엔드에서 확인)",
+            );
+          }
+          return;
+        }
+        const delay = Math.min(INITIAL_BACKOFF_MS * 2 ** (attempt - 1), 15000);
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null;
+          openSocket();
+        }, delay);
+      };
     };
 
-    socket.onmessage = (event) => {
+    const openSocket = () => {
+      if (cancelled) {
+        return;
+      }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       try {
-        const raw = JSON.parse(event.data) as unknown;
-        const parsed = tryParseQuizWsEvent(raw);
-        if (parsed) {
-          setLastEvent(parsed);
-          setLiveSession((prev) => reduceLiveSessionState(prev, parsed));
-
-          if (parsed.type === "quiz_started") {
-            onQuizStarted?.(parsed);
+        const socket = new WebSocket(url);
+        socketRef.current = socket;
+        socket.onopen = () => {
+          if (cancelled) {
+            return;
           }
-          if (parsed.type === "answer_update") {
-            onAnswerUpdate?.(parsed);
+          attempt = 0;
+          setConnectionAttempt(0);
+          setIsConnected(true);
+          if (!shownConnectToastRef.current) {
+            shownConnectToastRef.current = true;
+            toast.success("실시간 퀴즈방에 연결되었습니다.");
           }
-          if (parsed.type === "session_ended") {
-            onSessionEnded?.(parsed);
-            toast.info("이번 퀴즈가 종료되었습니다.");
-          }
-        }
+        };
+        attachHandlers(socket);
       } catch {
-        toast.error("실시간 알림을 읽는 데 문제가 있었습니다.");
+        setIsConnected(false);
+        if (!cancelled && attempt <= MAX_RECONNECT_ATTEMPTS) {
+          attempt += 1;
+          setConnectionAttempt(attempt);
+          reconnectTimerRef.current = setTimeout(openSocket, INITIAL_BACKOFF_MS);
+        }
       }
     };
 
-    socket.onerror = () => {
-      toast.error("연결이 불안정합니다. 새로고침 후 다시 시도해주세요.");
-    };
-
-    socket.onclose = () => {
-      setIsConnected(false);
-    };
+    openSocket();
 
     return () => {
-      socket.close();
+      cancelled = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      const s = socketRef.current;
+      if (s) {
+        s.onopen = null;
+        s.onmessage = null;
+        s.onerror = null;
+        s.onclose = null;
+        s.close();
+      }
       socketRef.current = null;
       setIsConnected(false);
     };
@@ -171,5 +254,6 @@ export function useQuizSocket({
     liveSession,
     sendAnswer,
     disconnect,
+    connectionAttempt,
   };
 }
