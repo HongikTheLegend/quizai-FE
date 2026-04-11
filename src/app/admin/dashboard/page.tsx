@@ -28,20 +28,19 @@ export default function AdminDashboardPage() {
         <StatTile
           title="활성 세션"
           description="현재 운영 중인 세션 수"
-          value={String(platform?.active_sessions ?? 0)}
-          delta={dashboardQuery.isFetching ? "동기화 중" : "최신"}
+          value={dashboardQuery.isLoading ? "…" : String(platform?.active_sessions ?? 0)}
         />
         <StatTile
           title="오늘 세션 수"
           description="금일 생성된 세션"
-          value={String(platform?.today_sessions ?? 0)}
-          delta="실시간"
+          value={dashboardQuery.isLoading ? "…" : String(platform?.today_sessions ?? 0)}
         />
         <StatTile
           title="평균 참여율"
           description="플랫폼 전체 참여율"
-          value={`${Math.round(platform?.avg_participation ?? 0)}%`}
-          delta="운영 지표"
+          value={
+            dashboardQuery.isLoading ? "…" : `${Math.round(platform?.avg_participation ?? 0)}%`
+          }
         />
       </div>
     </section>

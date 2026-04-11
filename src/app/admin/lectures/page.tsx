@@ -1,27 +1,81 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
 import { PageHero } from "@/components/common/page-hero";
 import { StatTile } from "@/components/common/stat-tile";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAdminDashboardQuery } from "@/hooks/api/use-admin-dashboard-query";
+import { useLecturesQuery } from "@/hooks/api/use-lectures-query";
 
 export default function AdminLecturesPage() {
+  const lecturesQuery = useLecturesQuery(1, 50);
+  const adminQuery = useAdminDashboardQuery();
+
+  const total = lecturesQuery.data?.total;
+  const platform = adminQuery.data?.platform;
+  const rows = lecturesQuery.data?.lectures ?? [];
+
+  const statValue = (n: number | undefined, loading: boolean) => {
+    if (loading) {
+      return "…";
+    }
+    return typeof n === "number" ? String(n) : "—";
+  };
+
   return (
     <section className="space-y-6">
       <PageHero
-        title="강의 데이터 관리"
-        description="업로드/퀴즈 생성 품질을 모니터링하고 실패 파이프라인을 점검하세요."
+        title="강의 데이터"
+        description="등록된 강의 목록과 플랫폼 세션 지표를 확인합니다."
         className="from-emerald-500/15 via-cyan-500/15 to-sky-500/15"
       />
       <div className="grid gap-4 md:grid-cols-3">
-        <StatTile title="전체 강의" description="등록된 강의 수" value="—" />
-        <StatTile title="처리 이슈" description="점검 필요 건수" value="—" />
-        <StatTile title="생성 성공률" description="최근 기간" value="—" />
+        <StatTile
+          title="등록 강의"
+          description="목록 API 기준 총계"
+          value={statValue(total, lecturesQuery.isLoading)}
+        />
+        <StatTile
+          title="활성 세션"
+          description="운영 대시보드 기준"
+          value={statValue(platform?.active_sessions, adminQuery.isLoading)}
+        />
+        <StatTile
+          title="오늘 세션"
+          description="금일 생성"
+          value={statValue(platform?.today_sessions, adminQuery.isLoading)}
+        />
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>강의 운영</CardTitle>
-          <CardDescription>강의 자료 처리와 품질 지표는 운영 정책에 맞게 연결됩니다.</CardDescription>
+          <CardTitle>강의 목록</CardTitle>
+          <CardDescription>최근 등록 순(최대 50건)</CardDescription>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          <p>강의별 현황과 알림은 운영 정책에 맞게 구성할 수 있습니다.</p>
+        <CardContent>
+          {lecturesQuery.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : lecturesQuery.isError ? (
+            <p className="text-sm text-destructive">강의 목록을 불러오지 못했습니다.</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">등록된 강의가 없습니다.</p>
+          ) : (
+            <ul className="divide-y rounded-lg border">
+              {rows.map((lec) => (
+                <li key={lec.lecture_id} className="flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium">{lec.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {lec.created_at ? new Date(lec.created_at).toLocaleString() : null}
+                      {typeof lec.quiz_count === "number" ? ` · 퀴즈 ${lec.quiz_count}세트` : null}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </section>

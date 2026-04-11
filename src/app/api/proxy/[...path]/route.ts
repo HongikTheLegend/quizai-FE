@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_TARGET_DEFAULT = "https://quizai-be.onrender.com";
 const API_TARGET = process.env.API_SERVER_URL?.trim() || API_TARGET_DEFAULT;
-const ENABLE_MOCK_FALLBACK = process.env.ENABLE_PROXY_MOCK_FALLBACK !== "false";
+/** 기본 false. 로컬에서만 `ENABLE_PROXY_MOCK_FALLBACK=true` 로 목 응답을 켤 수 있습니다. */
+const ENABLE_MOCK_FALLBACK = process.env.ENABLE_PROXY_MOCK_FALLBACK === "true";
 
 const wsOriginFromHttpBase = (httpBase: string): string => {
   try {
