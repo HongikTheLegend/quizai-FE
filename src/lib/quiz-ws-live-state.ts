@@ -118,15 +118,105 @@ export const reduceLiveSessionState = (
   }
 };
 
+function coerceQuizTimeLimitSec(v: unknown, fallback: number): number {
+  const n =
+    typeof v === "number" && Number.isFinite(v)
+      ? v
+      : typeof v === "string" && v.trim()
+        ? Number(v)
+        : Number.NaN;
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  return Math.min(600, Math.max(5, Math.round(n)));
+}
+
+/** `payload` 래핑·`quiz_start` 별칭·문자열 time_limit·choices 키 등 서버 차이 흡수 */
+function tryParseQuizStartedEvent(raw: unknown, o: { type?: string; payload?: unknown }): QuizWsEvent | null {
+  const body = (() => {
+    const p = o.payload;
+    if (p && typeof p === "object" && !Array.isArray(p)) {
+      return p as Record<string, unknown>;
+    }
+    if (raw && typeof raw === "object") {
+      const full = raw as Record<string, unknown>;
+      const { type: _ty, payload: _pl, ...rest } = full;
+      if (
+        rest.quiz_id !== undefined ||
+        rest.quizId !== undefined ||
+        (rest as { id?: unknown }).id !== undefined ||
+        rest.question !== undefined ||
+        rest.options !== undefined ||
+        rest.choices !== undefined
+      ) {
+        return rest;
+      }
+    }
+    return null;
+  })();
+
+  if (!body) {
+    return null;
+  }
+
+  const idRaw = body.quiz_id ?? body.quizId ?? (body as { id?: unknown }).id;
+  const quiz_id =
+    typeof idRaw === "string" && idRaw.trim()
+      ? idRaw.trim()
+      : idRaw != null && String(idRaw).trim()
+        ? String(idRaw).trim()
+        : "";
+  if (!quiz_id) {
+    return null;
+  }
+
+  const question = coerceQuestionText(body.question ?? body.text ?? body.stem ?? body.prompt);
+  if (!question.trim()) {
+    return null;
+  }
+
+  let optsRaw: unknown[] = [];
+  if (Array.isArray(body.options)) {
+    optsRaw = body.options;
+  } else if (Array.isArray(body.choices)) {
+    optsRaw = body.choices;
+  } else if (body.options && typeof body.options === "object") {
+    optsRaw = Object.values(body.options as Record<string, unknown>);
+  }
+  const options = optsRaw.map(coerceOptionText).filter((s) => s.trim().length > 0);
+  if (options.length === 0) {
+    return null;
+  }
+
+  const time_limit = coerceQuizTimeLimitSec(
+    body.time_limit ?? body.timeLimit ?? body.limit_seconds ?? body.limit,
+    30,
+  );
+
+  return {
+    type: "quiz_started",
+    payload: { quiz_id, question, options, time_limit },
+  };
+}
+
 /** Lenient parse: unknown shapes fall back to null (caller may still use last raw message). */
 export const tryParseQuizWsEvent = (raw: unknown): QuizWsEvent | null => {
   if (!raw || typeof raw !== "object") {
     return null;
   }
   const o = raw as { type?: string; payload?: unknown };
-  const t = o.type;
+  const tRaw = o.type;
+  if (typeof tRaw !== "string") {
+    return null;
+  }
+  const t = tRaw === "quiz_start" ? "quiz_started" : tRaw;
+
+  if (t === "quiz_started") {
+    return tryParseQuizStartedEvent(raw, { ...o, type: "quiz_started" });
+  }
+
   const p = o.payload;
-  if (typeof t !== "string" || !p || typeof p !== "object") {
+  if (!p || typeof p !== "object") {
     return null;
   }
   switch (t) {
@@ -137,31 +227,6 @@ export const tryParseQuizWsEvent = (raw: unknown): QuizWsEvent | null => {
       }
       const nickname = coerceRenderableText(pl.nickname).trim() || "참여자";
       return { type: "session_joined", payload: { participant_count: pl.participant_count, nickname } };
-    }
-    case "quiz_started": {
-      const pl = p as {
-        quiz_id?: string;
-        question?: unknown;
-        options?: unknown;
-        time_limit?: number;
-      };
-      if (typeof pl.quiz_id !== "string" || typeof pl.time_limit !== "number" || !Array.isArray(pl.options)) {
-        return null;
-      }
-      const question = coerceQuestionText(pl.question);
-      const options = pl.options.map(coerceOptionText);
-      if (options.length === 0) {
-        return null;
-      }
-      return {
-        type: "quiz_started",
-        payload: {
-          quiz_id: pl.quiz_id,
-          question,
-          options,
-          time_limit: pl.time_limit,
-        },
-      };
     }
     case "answer_update": {
       const pl = p as {

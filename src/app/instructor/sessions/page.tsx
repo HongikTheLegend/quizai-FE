@@ -23,7 +23,7 @@ import type { QuizWsEvent } from "@/lib/quiz-ws-live-state";
 import { coerceRenderableText } from "@/lib/normalize-quiz-shape";
 import { liveRoomPhaseLabel } from "@/lib/session-user-copy";
 import { cn } from "@/lib/utils";
-import type { Session, StartSessionRequest } from "@/types/api";
+import type { QuizQuestion, Session, StartSessionRequest } from "@/types/api";
 
 function describeLiveEvent(event: QuizWsEvent | null): string {
   if (!event) {
@@ -63,6 +63,8 @@ function InstructorSessionsPageInner() {
   /** 로컬에 저장된 세트 순서로 강사 화면에 즉시 표시 (-1 = 아직 「다음 문항」 미클릭) */
   const [localRoundIndex, setLocalRoundIndex] = useState(-1);
   const [localRoundStartedAt, setLocalRoundStartedAt] = useState<number | null>(null);
+  /** useMemo만 쓰면 하이드레이션 직후 localStorage 미반영으로 빈 배열이 고정될 수 있어 effect로 동기화 */
+  const [localQuestions, setLocalQuestions] = useState<QuizQuestion[]>([]);
   const startSessionMutation = useStartSessionMutation();
 
   useEffect(() => {
@@ -106,9 +108,14 @@ function InstructorSessionsPageInner() {
     [timeLimit],
   );
 
-  const localQuestions = useMemo(() => {
-    const entry = getInstructorQuizHistoryByQuizSetId(quizSetId.trim());
-    return entry?.questions ?? [];
+  useEffect(() => {
+    const id = quizSetId.trim();
+    if (!id) {
+      setLocalQuestions([]);
+      return;
+    }
+    const entry = getInstructorQuizHistoryByQuizSetId(id);
+    setLocalQuestions(entry?.questions ?? []);
   }, [quizSetId]);
 
   const displayQuiz = useMemo(() => {
@@ -215,11 +222,11 @@ function InstructorSessionsPageInner() {
     if (localQuestions.length > 0) {
       const next = localRoundIndex + 1;
       if (next >= localQuestions.length) {
-        toast.info("이 세트의 마지막 문항이에요.");
-        return;
+        toast.info("저장된 세트 문항은 여기까지예요. 서버에서 다음 문항이 열리면 화면이 갱신됩니다.");
+      } else {
+        setLocalRoundIndex(next);
+        setLocalRoundStartedAt(Date.now());
       }
-      setLocalRoundIndex(next);
-      setLocalRoundStartedAt(Date.now());
     }
     socket.startNextQuestion();
   };

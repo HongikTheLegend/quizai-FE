@@ -256,9 +256,14 @@ export function useQuizSocket({
       toast.error("실시간 연결 후 다시 시도해 주세요.");
       return;
     }
-    socket.send(JSON.stringify({ type: "next_question" }));
+    socket.send(
+      JSON.stringify({
+        type: "next_question",
+        session_id: sessionId,
+      }),
+    );
     toast.success("다음 문항을 보냈어요.");
-  }, []);
+  }, [sessionId]);
 
   return {
     isConnected,
