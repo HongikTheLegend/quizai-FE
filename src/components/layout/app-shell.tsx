@@ -8,7 +8,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { SiteLogo } from "@/components/common/site-logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { clearAuthSession, getStoredRole } from "@/lib/auth-storage";
+import { clearAuthSession, getStoredRole, getStoredUser } from "@/lib/auth-storage";
 import { roleHomeHint } from "@/lib/session-user-copy";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types/api";
@@ -30,10 +30,9 @@ const NAV_MAP: Record<UserRole, NavItem[]> = {
     { href: "/instructor/sessions", label: "라이브 퀴즈", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   student: [
-    { href: "/student/dashboard", label: "내 홈 · 결과", icon: <LayoutDashboard className="h-4 w-4" /> },
-    { href: "/student/lectures", label: "수업 신청", icon: <School className="h-4 w-4" /> },
-    { href: "/student/join", label: "퀴즈방 입장", icon: <BookOpen className="h-4 w-4" /> },
-    { href: "/student/play", label: "실시간 퀴즈", icon: <BookOpen className="h-4 w-4" /> },
+    { href: "/student/dashboard", label: "홈", icon: <LayoutDashboard className="h-4 w-4" /> },
+    { href: "/student/lectures", label: "강의", icon: <School className="h-4 w-4" /> },
+    { href: "/student/join", label: "입장", icon: <BookOpen className="h-4 w-4" /> },
   ],
   admin: [
     { href: "/admin/dashboard", label: "관리자 대시보드", icon: <LayoutDashboard className="h-4 w-4" /> },
@@ -97,8 +96,17 @@ export function AppShell({ children }: AppShellProps) {
   }, [pathname]);
 
   const [storedRole, setStoredRole] = useState<UserRole | null>(null);
+  const [accountLine, setAccountLine] = useState<{ primary: string; secondary?: string } | null>(null);
   useEffect(() => {
     setStoredRole(getStoredRole());
+    const user = getStoredUser();
+    if (user) {
+      const primary = user.name?.trim() || user.email;
+      const secondary = user.name?.trim() && user.email !== primary ? user.email : undefined;
+      setAccountLine({ primary, secondary });
+    } else {
+      setAccountLine(null);
+    }
   }, [pathname]);
 
   const role = storedRole ?? pathnameRole;
@@ -166,10 +174,18 @@ export function AppShell({ children }: AppShellProps) {
                   <span className="sr-only">QuizAI 홈</span>
                 </Link>
               </div>
-              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                <p className="hidden max-w-[220px] truncate text-xs font-medium text-muted-foreground lg:max-w-none lg:text-sm">
-                  차세대 실시간 학습 · 피드백
-                </p>
+              <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+                {accountLine ? (
+                  <div className="min-w-0 max-w-[min(100%,200px)] text-right sm:max-w-[min(100%,240px)]">
+                    <p className="truncate text-sm font-semibold text-foreground">{accountLine.primary}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {accountLine.secondary ? `${accountLine.secondary} · ` : ""}
+                      {roleLabel}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="hidden text-sm text-muted-foreground sm:block">{roleLabel}</p>
+                )}
                 <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
                   <LogOut className="mr-1 h-4 w-4" />
                   로그아웃

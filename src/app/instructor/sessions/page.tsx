@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { ConnectionStatus } from "@/components/common/connection-status";
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { useQuizDeadlineCountdown } from "@/hooks/use-quiz-deadline-countdown";
 import { useStartSessionMutation } from "@/hooks/api/use-start-session-mutation";
 import { useQuizSocket } from "@/hooks/use-quiz-socket";
+import { readLastQuizSet, type LastQuizSetInfo } from "@/lib/last-quiz-set";
 import type { QuizWsEvent } from "@/lib/quiz-ws-live-state";
 import { liveRoomPhaseLabel } from "@/lib/session-user-copy";
 import type { Session, StartSessionRequest } from "@/types/api";
@@ -43,14 +45,39 @@ function describeLiveEvent(event: QuizWsEvent | null): string {
   }
 }
 
-export default function InstructorSessionsPage() {
+function InstructorSessionsPageInner() {
+  const searchParams = useSearchParams();
   const [quizSetId, setQuizSetId] = useState("");
+  const [lastQuizHint, setLastQuizHint] = useState<LastQuizSetInfo | null>(null);
+  /** 퀴즈 빌더에서 불러온 요약 대신, 세트 번호를 직접 쓰고 싶을 때 */
+  const [useCustomQuizSetId, setUseCustomQuizSetId] = useState(false);
   const [timeLimit, setTimeLimit] = useState("30");
   const [session, setSession] = useState<Session | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [questionId, setQuestionId] = useState("");
   const [answer, setAnswer] = useState("0");
   const startSessionMutation = useStartSessionMutation();
+
+  useEffect(() => {
+    const fromUrl = searchParams.get("quiz_set_id")?.trim();
+    const stored = readLastQuizSet();
+    setLastQuizHint(stored);
+    if (fromUrl) {
+      setQuizSetId(fromUrl);
+      setUseCustomQuizSetId(false);
+      return;
+    }
+    if (stored?.quizSetId) {
+      setQuizSetId(stored.quizSetId);
+      setUseCustomQuizSetId(false);
+    }
+  }, [searchParams]);
+
+  const showQuizSummary =
+    Boolean(lastQuizHint) &&
+    Boolean(quizSetId) &&
+    lastQuizHint?.quizSetId === quizSetId &&
+    !useCustomQuizSetId;
 
   const sessionId = session?.session_id ?? "";
 
@@ -99,6 +126,18 @@ export default function InstructorSessionsPage() {
     }
   };
 
+  const handleCopyQuizSetHint = async () => {
+    if (!quizSetId.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(quizSetId.trim());
+      toast.success("퀴즈 세트 번호를 복사했습니다.");
+    } catch {
+      toast.error("복사에 실패했습니다.");
+    }
+  };
+
   const handleSendAnnouncement = () => {
     if (!announcement.trim()) {
       toast.error("공지 내용을 입력해주세요.");
@@ -111,9 +150,8 @@ export default function InstructorSessionsPage() {
   return (
     <section className="space-y-8">
       <PageHero
-        eyebrow="Live classroom"
-        title="라이브 퀴즈 운영"
-        description="퀴즈 세트만 준비되어 있으면 방을 열고, 학생은 참여코드만으로 입장합니다. 복잡한 기술 용어 없이 수업 흐름에 집중하세요."
+        title="라이브 퀴즈"
+        description="퀴즈 세트와 문항당 제한 시간을 정하면 방이 열립니다. 수강생은 참여 코드만 입력하면 됩니다."
       />
 
       <FlowSteps
@@ -136,26 +174,10 @@ export default function InstructorSessionsPage() {
       <HelperTip
         title="운영 팁"
         steps={[
-          "코드를 공유한 뒤 30초 정도 기다렸다가 문항을 시작하면 입장률이 올라갑니다.",
-          "응답이 늦으면 난이도·시간을 점검해 보세요.",
-          "문제가 있으면 아래 ‘고급 · 기술 정보’에서 연결 진단에 쓰는 값을 복사할 수 있습니다.",
+          "참여 코드를 공유한 뒤 잠시 기다렸다가 문항을 시작하면 입장률이 올라갑니다.",
+          "응답이 늦으면 제한 시간이나 난이도를 조정해 보세요.",
         ]}
       />
-
-      <Card className="border-primary/15 bg-gradient-to-br from-card to-primary/[0.03] shadow-sm">
-        <CardHeader>
-          <CardTitle>AI 운영 코멘트</CardTitle>
-          <CardDescription>응답 패턴을 가정한 예시입니다. 실제 분석 API 연동 시 자동으로 갱신할 수 있어요.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p className="rounded-xl border border-border/80 bg-card/90 p-3 leading-relaxed shadow-sm">
-            3번 문항의 응답 분산이 큽니다. 정답 공개 전 짧은 힌트를 주면 이해도가 올라갑니다.
-          </p>
-          <p className="rounded-xl border border-border/60 bg-muted/40 p-3 leading-relaxed">
-            평균 풀이 시간이 길어지고 있어요. 다음 문항은 선택지를 하나 줄이거나 시간을 10초 늘려 보세요.
-          </p>
-        </CardContent>
-      </Card>
 
       <Card className="shadow-sm">
         <CardHeader>
@@ -164,14 +186,51 @@ export default function InstructorSessionsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleStartSession} className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">퀴즈 세트</label>
-              <Input
-                value={quizSetId}
-                onChange={(e) => setQuizSetId(e.target.value)}
-                placeholder="예: qs_로 시작하는 세트 ID"
-                required
-              />
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="quiz-set-field">
+                어떤 퀴즈로 진행할까요?
+              </label>
+              {showQuizSummary && lastQuizHint ? (
+                <div
+                  id="quiz-set-field"
+                  className="space-y-2 rounded-xl border border-border bg-muted/25 p-4"
+                >
+                  <div>
+                    <p className="font-semibold leading-snug">
+                      {lastQuizHint.lectureTitle ?? "퀴즈 빌더에서 만든 세트"}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      문항 {lastQuizHint.totalQuestions}개가 연결돼 있어요. 퀴즈 빌더에서 이어서 온 경우 자동으로 채워집니다.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={handleCopyQuizSetHint}>
+                      세트 번호 복사
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => {
+                        setUseCustomQuizSetId(true);
+                        setQuizSetId("");
+                      }}
+                    >
+                      다른 퀴즈 세트 쓰기
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Input
+                  id="quiz-set-field"
+                  value={quizSetId}
+                  onChange={(e) => setQuizSetId(e.target.value)}
+                  placeholder="퀴즈 빌더에서 만든 뒤 오면 자동으로 채워져요"
+                  className="font-mono text-sm"
+                  required
+                />
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">문항당 제한(초)</label>
@@ -301,5 +360,17 @@ export default function InstructorSessionsPage() {
         </CardContent>
       </Card>
     </section>
+  );
+}
+
+export default function InstructorSessionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <section className="space-y-6 p-4 text-sm text-muted-foreground">라이브 퀴즈 화면을 불러오는 중…</section>
+      }
+    >
+      <InstructorSessionsPageInner />
+    </Suspense>
   );
 }

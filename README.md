@@ -4,10 +4,14 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 - Commit message convention: `COMMIT_CONVENTION.md`
 
+## Production (프론트)
+
+- **URL:** [https://quizai-fe.vercel.app/](https://quizai-fe.vercel.app/)
+
 ## API Proxy (CORS workaround)
 
 - Local development uses same-origin proxy at `/api/proxy/*`
-- Target backend URL is configured by `API_SERVER_URL` (default: `https://quizai-api.onrender.com`)
+- Target backend URL is configured by `API_SERVER_URL` (default: `https://quizai-be.onrender.com`)
 - If `NEXT_PUBLIC_API_URL` is unset, frontend client uses `/api/proxy`
 
 ## Getting Started
@@ -48,7 +52,7 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 3. **Root Directory**: 저장소 루트(기본값).
 4. **Environment Variables** (선택 — 비워도 기본 백엔드로 동작):
    - `.env.example` 참고. 로컬과 동일하게 쓰려면 `NEXT_PUBLIC_API_URL=/api/proxy` 권장.
-5. **Deploy**. 이후 `main` 푸시마다 프로덕션 배포가 갱신됩니다.
+5. **Deploy**. 이후 기본 브랜치 푸시마다 프로덕션 배포가 갱신됩니다. 현재 프로덕션: [quizai-fe.vercel.app](https://quizai-fe.vercel.app/).
 
 `vercel.json`에서 서버리스/API 라우트 리전을 **서울(`icn1`)** 으로 두었습니다. 다른 리전이 필요하면 해당 파일을 수정하세요.
 

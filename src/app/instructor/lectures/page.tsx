@@ -1,15 +1,19 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { PageHero } from "@/components/common/page-hero";
-import { Button } from "@/components/ui/button";
+import { TechDetails } from "@/components/common/tech-details";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGenerateQuizMutation } from "@/hooks/api/use-generate-quiz-mutation";
 import { useUploadLectureMutation } from "@/hooks/api/use-upload-lecture-mutation";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { saveLastQuizSet } from "@/lib/last-quiz-set";
+import { cn } from "@/lib/utils";
 import type { GenerateQuizRequest, Lecture, QuizQuestion } from "@/types/api";
 
 export default function InstructorLecturesPage() {
@@ -23,10 +27,18 @@ export default function InstructorLecturesPage() {
   const [uploadedLecture, setUploadedLecture] = useState<Lecture | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  /** 업로드한 강의가 있으면 참조 번호 입력란은 접어 두고 제목만 보여 줍니다. */
+  const [lectureIdUnlocked, setLectureIdUnlocked] = useState(true);
   const uploadLectureMutation = useUploadLectureMutation();
   const generateQuizMutation = useGenerateQuizMutation();
 
   const isBusy = uploadLectureMutation.isPending || generateQuizMutation.isPending;
+
+  useEffect(() => {
+    if (uploadedLecture) {
+      setLectureIdUnlocked(false);
+    }
+  }, [uploadedLecture?.lecture_id]);
 
   const aiKeywords = useMemo(
     () =>
@@ -40,18 +52,28 @@ export default function InstructorLecturesPage() {
     lecId: string,
     quizCount: number,
     mode: "replace" | "append",
+    meta?: { lectureTitle?: string },
   ) => {
     const payload: GenerateQuizRequest = {
       lecture_id: lecId,
       count: quizCount,
     };
+    const prevLen = questions.length;
     const data = await generateQuizMutation.mutateAsync(payload);
     setQuizSetId(data.quiz_set_id);
+    let totalAfter: number;
     if (mode === "replace") {
       setQuestions(data.quizzes);
+      totalAfter = data.quizzes.length;
     } else {
+      totalAfter = prevLen + data.quizzes.length;
       setQuestions((prev) => [...prev, ...data.quizzes]);
     }
+    saveLastQuizSet({
+      quizSetId: data.quiz_set_id,
+      lectureTitle: meta?.lectureTitle,
+      totalQuestions: totalAfter,
+    });
     return data;
   };
 
@@ -78,7 +100,7 @@ export default function InstructorLecturesPage() {
       setLectureId(lecture.lecture_id);
       toast.success("업로드 완료. 같은 강의로 퀴즈를 자동 생성합니다…");
 
-      await runGenerate(lecture.lecture_id, quizCount, "replace");
+      await runGenerate(lecture.lecture_id, quizCount, "replace", { lectureTitle: lecture.title });
       toast.success(`퀴즈 ${quizCount}문항 생성이 완료되었습니다.`);
     } catch {
       // api-client / generate 실패 시 토스트는 인터셉터·뮤테이션에서 처리
@@ -88,14 +110,16 @@ export default function InstructorLecturesPage() {
   const handleGenerateMore = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!lectureId.trim()) {
-      toast.error("강의 ID가 없습니다. 먼저 파일을 업로드하세요.");
+      toast.error("먼저 강의를 업로드하거나, 아래에서 강의 참조 번호를 입력해 주세요.");
       return;
     }
     const n = Number(extraCount);
     const quizCount = Number.isFinite(n) && n >= 1 ? Math.min(20, n) : 5;
 
     try {
-      await runGenerate(lectureId.trim(), quizCount, "append");
+      await runGenerate(lectureId.trim(), quizCount, "append", {
+        lectureTitle: uploadedLecture?.title,
+      });
       toast.success(`추가로 ${quizCount}문항을 붙였습니다.`);
     } catch {
       // apiRequest에서 토스트
@@ -105,14 +129,16 @@ export default function InstructorLecturesPage() {
   const handleManualRegenerate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!lectureId.trim()) {
-      toast.error("lecture_id를 입력하세요.");
+      toast.error("강의 참조 번호를 입력해 주세요.");
       return;
     }
     const n = Number(count);
     const quizCount = Number.isFinite(n) && n >= 1 ? Math.min(20, n) : 5;
 
     try {
-      await runGenerate(lectureId.trim(), quizCount, "replace");
+      await runGenerate(lectureId.trim(), quizCount, "replace", {
+        lectureTitle: uploadedLecture?.title,
+      });
       toast.success("퀴즈를 새로 덮어썼습니다.");
     } catch {
       // apiRequest에서 토스트
@@ -245,17 +271,35 @@ export default function InstructorLecturesPage() {
         <CardHeader>
           <CardTitle>3) 같은 강의로 더 만들기 (선택)</CardTitle>
           <CardDescription>
-            업로드는 한 번만. 추가 분량이 필요하면 lecture_id는 그대로 두고 문항만 더 뽑습니다.
+            업로드한 강의가 있으면 제목만 보여 두고, 문항 수만 조절해 추가 생성할 수 있어요. 다른 강의를 쓰려면「번호로 바꾸기」를 누르세요.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <form onSubmit={handleGenerateMore} className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
-            <Input
-              value={lectureId}
-              onChange={(event) => setLectureId(event.target.value)}
-              placeholder="lecture_id (업로드 시 자동 입력)"
-              className="font-mono text-sm"
-            />
+          <form onSubmit={handleGenerateMore} className="grid gap-3 md:grid-cols-[1fr_140px_auto] md:items-end">
+            {uploadedLecture && !lectureIdUnlocked ? (
+              <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <span className="text-sm">
+                  <span className="text-muted-foreground">연결된 강의</span>{" "}
+                  <span className="font-medium text-foreground">{uploadedLecture.title}</span>
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setLectureIdUnlocked(true)}
+                >
+                  번호로 바꾸기
+                </Button>
+              </div>
+            ) : (
+              <Input
+                value={lectureId}
+                onChange={(event) => setLectureId(event.target.value)}
+                placeholder="강의 참조 번호 (업로드 시 자동 입력)"
+                className="font-mono text-sm"
+              />
+            )}
             <Input
               type="number"
               min={1}
@@ -271,13 +315,27 @@ export default function InstructorLecturesPage() {
 
           <div className="border-t border-border/80 pt-4">
             <p className="mb-2 text-xs font-medium text-muted-foreground">다시 처음부터 덮어쓰기</p>
-            <form onSubmit={handleManualRegenerate} className="grid gap-3 md:grid-cols-[1fr_100px_auto]">
-              <Input
-                value={lectureId}
-                onChange={(event) => setLectureId(event.target.value)}
-                placeholder="동일 lecture_id"
-                className="font-mono text-sm"
-              />
+            <form onSubmit={handleManualRegenerate} className="grid gap-3 md:grid-cols-[1fr_100px_auto] md:items-end">
+              {uploadedLecture && !lectureIdUnlocked ? (
+                <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                  <span className="text-sm text-muted-foreground">위와 동일한 강의 기준</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setLectureIdUnlocked(true)}
+                  >
+                    번호로 바꾸기
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  value={lectureId}
+                  onChange={(event) => setLectureId(event.target.value)}
+                  placeholder="강의 참조 번호"
+                  className="font-mono text-sm"
+                />
+              )}
               <Input
                 type="number"
                 min={1}
@@ -292,13 +350,18 @@ export default function InstructorLecturesPage() {
           </div>
 
           {uploadedLecture ? (
-            <p className="text-xs text-muted-foreground">
-              현재 강의: <span className="font-medium text-foreground">{uploadedLecture.title}</span> ·{" "}
-              <span className="font-mono">{uploadedLecture.lecture_id}</span>
-            </p>
-          ) : null}
-          {quizSetId ? (
-            <p className="text-xs text-primary">마지막 quiz_set_id: {quizSetId}</p>
+            <TechDetails title="강의·세트 참조 번호 (지원·연동용)">
+              <p className="break-all text-muted-foreground">
+                <span className="font-medium text-foreground">강의:</span>{" "}
+                <span className="font-mono">{uploadedLecture.lecture_id}</span>
+              </p>
+              {quizSetId ? (
+                <p className="mt-2 break-all text-muted-foreground">
+                  <span className="font-medium text-foreground">퀴즈 세트:</span>{" "}
+                  <span className="font-mono">{quizSetId}</span>
+                </p>
+              ) : null}
+            </TechDetails>
           ) : null}
         </CardContent>
       </Card>
@@ -309,6 +372,30 @@ export default function InstructorLecturesPage() {
           <CardDescription>생성된 퀴즈를 다듬은 뒤, 라이브 퀴즈 화면에서 방을 열어 수업에 사용하세요.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          {quizSetId && questions.length > 0 ? (
+            <div className="rounded-xl border border-primary/25 bg-primary/[0.06] p-4 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-medium text-primary">생성된 퀴즈</p>
+                  <p className="mt-1 text-lg font-semibold leading-snug">
+                    {uploadedLecture?.title ?? "방금 만든 퀴즈"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">총 {questions.length}문항 · 수업에서 바로 쓸 수 있어요.</p>
+                </div>
+                <Link
+                  href={`/instructor/sessions?quiz_set_id=${encodeURIComponent(quizSetId)}`}
+                  className={cn(buttonVariants(), "shrink-0 sm:self-center")}
+                >
+                  이 퀴즈로 라이브 방 열기
+                </Link>
+              </div>
+              <div className="mt-3">
+                <TechDetails title="연동용 퀴즈 세트 번호 (필요할 때만)">
+                  <p className="break-all font-mono text-[11px] text-muted-foreground">{quizSetId}</p>
+                </TechDetails>
+              </div>
+            </div>
+          ) : null}
           {generateQuizMutation.isPending ? (
             <div className="grid gap-3">
               <Skeleton className="h-24 w-full" />

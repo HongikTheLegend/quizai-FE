@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { PageHero } from "@/components/common/page-hero";
+import { StudentFlowRail } from "@/components/student/student-flow-rail";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,24 +30,21 @@ export default function StudentLecturesPage() {
 
   return (
     <section className="space-y-6">
+      <StudentFlowRail />
       <PageHero
-        eyebrow="Catalog"
-        title="수업 신청"
-        description="퀴즈방에 들어가기 전, 먼저 들을 강의를 신청해 주세요. 신청이 완료되면 강사님이 연 라이브 퀴즈에 참여할 수 있습니다."
+        title="강의 신청"
+        description="수강할 강의를 선택하면 이후 해당 수업의 라이브 퀴즈에 참여할 수 있습니다."
         actions={
           <Link href="/student/join" className={cn(buttonVariants({ variant: "outline" }))}>
-            퀴즈방 입장으로 이동
+            참여 코드로 입장
           </Link>
         }
       />
 
       <Card className="border-dashed border-border/90 bg-card/80 shadow-sm">
         <CardHeader>
-          <CardTitle>열려 있는 강의</CardTitle>
-          <CardDescription>
-            백엔드가 <code className="text-xs">GET /lectures</code>와{" "}
-            <code className="text-xs">POST /lectures/{"{lecture_id}"}/enroll</code>를 제공하면 여기서 바로 연동됩니다.
-          </CardDescription>
+          <CardTitle>신청 가능한 강의</CardTitle>
+          <CardDescription>목록은 서버에 등록된 강의입니다.</CardDescription>
         </CardHeader>
         <CardContent>
           {lecturesQuery.isLoading ? (
@@ -67,8 +65,10 @@ export default function StudentLecturesPage() {
                     <div>
                       <p className="font-medium">{lec.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {lec.lecture_id}
-                        {typeof lec.quiz_count === "number" ? ` · 퀴즈 ${lec.quiz_count}세트` : null}
+                        {typeof lec.quiz_count === "number" ? `퀴즈 ${lec.quiz_count}세트` : "강의"}
+                        {lec.created_at
+                          ? ` · ${new Date(lec.created_at).toLocaleDateString()}`
+                          : null}
                       </p>
                     </div>
                     {enrolled ? (

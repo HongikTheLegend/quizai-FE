@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { PageHero } from "@/components/common/page-hero";
 import { SessionResultPanel } from "@/components/student/session-result-panel";
+import { StudentFlowRail } from "@/components/student/student-flow-rail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { HelperTip } from "@/components/common/helper-tip";
 import { StatTile } from "@/components/common/stat-tile";
 import { useSessionResultQuery } from "@/hooks/api/use-session-result-query";
 import { useStudentQuizResultsQuery } from "@/hooks/api/use-student-quiz-results-query";
@@ -40,46 +40,77 @@ function StudentDashboardInner() {
     }
   }, [myResultsQuery.data?.results, selectedSessionId]);
 
-  const summaries = myResultsQuery.data?.results ?? [];
+  const summaries = useMemo(() => {
+    const rows = myResultsQuery.data?.results ?? [];
+    return [...rows].sort((a, b) => {
+      const ta = a.attended_at ? new Date(a.attended_at).getTime() : 0;
+      const tb = b.attended_at ? new Date(b.attended_at).getTime() : 0;
+      return tb - ta;
+    });
+  }, [myResultsQuery.data?.results]);
+
+  const scoreStats = useMemo(() => {
+    const scores = summaries.map((s) => s.my_score).filter((n): n is number => typeof n === "number");
+    if (scores.length === 0) {
+      return { avg: null as number | null, count: summaries.length };
+    }
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    return { avg, count: summaries.length };
+  }, [summaries]);
+
+  const latestGrade = summaries[0]?.grade;
 
   return (
     <section className="space-y-6">
+      <StudentFlowRail />
       <PageHero
-        eyebrow="Learner home"
-        title="나의 학습 홈"
-        description="참여한 퀴즈 결과는 여기 모입니다. 기록 번호를 외울 필요 없이, 로그인한 계정 기준으로 목록이 채워집니다."
+        title="학습 홈"
+        description="참여한 퀴즈 점수와 상세 결과를 이 계정 기준으로 모아 둡니다."
         actions={
           <>
             <Button variant="outline" onClick={() => window.location.assign("/student/lectures")}>
-              수업 신청
+              강의 신청
             </Button>
-            <Button onClick={() => window.location.assign("/student/join")}>퀴즈방 입장</Button>
+            <Button onClick={() => window.location.assign("/student/join")}>코드로 입장</Button>
           </>
         }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatTile title="이해도 점수" description="오늘 학습 기준" value="85%" delta="+7%" />
-        <StatTile title="평균 점수" description="최근 3회 기준" value="78점" delta="+4점" />
-        <StatTile title="정답률" description="전체 문제 대비" value="82%" delta="+6.5%" />
+        <StatTile
+          title="참여 횟수"
+          description="기록된 세션"
+          value={myResultsQuery.isLoading ? "…" : `${scoreStats.count}회`}
+        />
+        <StatTile
+          title="평균 점수"
+          description={scoreStats.count > 0 ? "기록이 있는 세션 기준" : "기록이 없어요"}
+          value={
+            myResultsQuery.isLoading ? "…" : scoreStats.avg !== null ? `${scoreStats.avg}점` : "—"
+          }
+        />
+        <StatTile
+          title="최근 등급"
+          description={summaries[0]?.attended_at ? new Date(summaries[0].attended_at).toLocaleDateString() : "최근 참여"}
+          value={
+            myResultsQuery.isLoading ? "…" : latestGrade ? gradeLabelKo(latestGrade) : "—"
+          }
+        />
       </div>
 
       <Card id="quiz-results" className="scroll-mt-6 border-primary/12 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.09)]">
         <CardHeader>
-          <CardTitle>내 퀴즈 결과</CardTitle>
-          <CardDescription>
-            서버가 <code className="rounded bg-muted px-1 text-xs">GET /students/me/quiz-results</code>를 제공하면
-            자동으로 목록이 나옵니다. 항목을 누르면 상세 집계를 불러옵니다.
-          </CardDescription>
+          <CardTitle>퀴즈 결과</CardTitle>
+          <CardDescription>세션을 선택하면 상세 점수와 문항별 결과를 불러옵니다.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {myResultsQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">참여 기록을 불러오는 중…</p>
           ) : myResultsQuery.isError ? (
-            <p className="text-sm text-destructive">목록을 불러오지 못했습니다. 백엔드 경로를 확인해주세요.</p>
+            <p className="text-sm text-destructive">결과를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
           ) : summaries.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/70 bg-muted/25 p-8 text-center text-sm text-muted-foreground">
-              아직 연동된 퀴즈 기록이 없습니다. 라이브 퀴즈에 참여하면 여기에 쌓입니다.
+              아직 참여 기록이 없습니다. 강의를 신청한 뒤 참여 코드로 입장해 보세요.
             </div>
           ) : (
             <ul className="grid gap-2 sm:grid-cols-2">
@@ -95,12 +126,11 @@ function StudentDashboardInner() {
                         : "border-border/60 bg-card hover:border-primary/35 hover:shadow-[0_8px_24px_-10px_rgba(15,23,42,0.1)]",
                     )}
                   >
-                    <p className="font-semibold text-foreground">{row.title ?? "퀴즈 세션"}</p>
-                    <p className="mt-1 font-mono text-xs text-muted-foreground">{row.session_id}</p>
+                    <p className="font-semibold text-foreground">{row.title ?? "라이브 퀴즈"}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       {row.attended_at ? <span>{new Date(row.attended_at).toLocaleString()}</span> : null}
                       {typeof row.my_score === "number" ? (
-                        <span className="font-medium text-foreground">내 점수 {row.my_score}점</span>
+                        <span className="font-medium text-foreground">{row.my_score}점</span>
                       ) : null}
                       {row.grade ? (
                         <span className="rounded-full bg-muted px-2 py-0.5">{gradeLabelKo(row.grade)}</span>
@@ -125,55 +155,6 @@ function StudentDashboardInner() {
           ) : null}
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle>오답 노트 (AI 요약)</CardTitle>
-            <CardDescription>오늘 놓친 핵심 개념을 AI가 정리했습니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>• 과적합: 학습 데이터에 지나치게 맞춰 일반화 성능이 낮아진 상태</p>
-            <p>• 정규화: 모델 복잡도를 제한해 과적합을 줄이는 기법</p>
-            <p>• 실전 팁: 오답 문항의 정답 근거를 한 줄로 다시 써보기</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card">
-          <CardHeader>
-            <CardTitle>플레이 성장 트랙</CardTitle>
-            <CardDescription>게임처럼 진행되는 학습 성장 지표</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <div className="mb-1 flex justify-between text-xs">
-                <span>참여왕 배지</span>
-                <span>60%</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-full w-3/5 rounded-full bg-gradient-to-r from-amber-500 to-pink-500" />
-              </div>
-            </div>
-            <div>
-              <div className="mb-1 flex justify-between text-xs">
-                <span>정답률 마스터</span>
-                <span>25%</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-full w-1/4 rounded-full bg-gradient-to-r from-cyan-500 to-indigo-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <HelperTip
-        title="학습 효율 올리기"
-        steps={[
-          "퀴즈방에 나온 직후, 오답만 골라 짧게 복습하세요.",
-          "주 3회 이상 짧은 퀴즈로 기억을 고정하세요.",
-          "점수보다 정답 근거를 설명하는 연습을 해보세요.",
-        ]}
-      />
     </section>
   );
 }

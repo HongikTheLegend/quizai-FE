@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_TARGET = process.env.API_SERVER_URL?.trim() || "https://quizai-api.onrender.com";
+const API_TARGET_DEFAULT = "https://quizai-be.onrender.com";
+const API_TARGET = process.env.API_SERVER_URL?.trim() || API_TARGET_DEFAULT;
 const ENABLE_MOCK_FALLBACK = process.env.ENABLE_PROXY_MOCK_FALLBACK !== "false";
+
+const wsOriginFromHttpBase = (httpBase: string): string => {
+  try {
+    const u = new URL(httpBase);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      throw new Error("invalid");
+    }
+    return `${u.protocol === "https:" ? "wss:" : "ws:"}//${u.host}`;
+  } catch {
+    return "wss://quizai-be.onrender.com";
+  }
+};
+
+const WS_ORIGIN = wsOriginFromHttpBase(API_TARGET);
 
 const FORWARDED_HEADERS = [
   "authorization",
@@ -141,7 +156,7 @@ const buildMockResponse = async (request: NextRequest, path: string[]) => {
       {
         session_id: sessionId,
         session_code: "A7K3B9",
-        ws_url: `wss://quizai-api.onrender.com/sessions/${sessionId}/join`,
+        ws_url: `${WS_ORIGIN}/sessions/${sessionId}/join`,
         status: "waiting",
       },
       { status: 201, headers },
@@ -171,7 +186,7 @@ const buildMockResponse = async (request: NextRequest, path: string[]) => {
       {
         session_id: sessionId,
         session_code: "A7K3B9",
-        ws_url: `wss://quizai-api.onrender.com/sessions/${sessionId}/join`,
+        ws_url: `${WS_ORIGIN}/sessions/${sessionId}/join`,
         status: "active",
       },
       { status: 200, headers },
