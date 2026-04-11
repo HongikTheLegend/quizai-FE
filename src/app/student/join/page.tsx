@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -12,17 +12,26 @@ import { PageHero } from "@/components/common/page-hero";
 import { StudentFlowRail } from "@/components/student/student-flow-rail";
 import { Input } from "@/components/ui/input";
 import { useJoinSessionMutation } from "@/hooks/api/use-join-session-mutation";
+import { getStoredUser } from "@/lib/auth-storage";
 import {
   JOIN_CODE_MAX_LENGTH,
   JOIN_CODE_MIN_LENGTH,
   normalizeJoinCode,
 } from "@/lib/join-code";
-import { rememberSessionWsUrl } from "@/lib/session-ws-url";
+import { rememberJoinNickname, rememberSessionWsUrl } from "@/lib/session-ws-url";
 
 export default function StudentJoinPage() {
   const router = useRouter();
   const [joinCode, setJoinCode] = useState("");
+  const [nickname, setNickname] = useState("");
   const joinSessionMutation = useJoinSessionMutation();
+
+  useEffect(() => {
+    const name = getStoredUser()?.name?.trim();
+    if (name) {
+      setNickname(name);
+    }
+  }, []);
 
   const handleJoin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -33,8 +42,10 @@ export default function StudentJoinPage() {
         toast.error(`참여 코드를 ${JOIN_CODE_MIN_LENGTH}자 이상 입력해주세요.`);
         return;
       }
-      const data = await joinSessionMutation.mutateAsync({ joinCode: code });
+      const displayName = nickname.trim() || "학생";
+      const data = await joinSessionMutation.mutateAsync({ joinCode: code, nickname: displayName });
       rememberSessionWsUrl(data.session_id, data.ws_url);
+      rememberJoinNickname(data.session_id, displayName);
       toast.success("퀴즈 화면으로 이동합니다.");
       router.push(`/student/play?sessionId=${encodeURIComponent(data.session_id)}`);
     } catch (error) {
@@ -63,12 +74,26 @@ export default function StudentJoinPage() {
         <CardHeader>
           <CardTitle>코드 입력</CardTitle>
           <CardDescription>
-            교강사「라이브 퀴즈」에 보이는 참여 코드와 동일합니다. 영문·숫자, 공백 없이{" "}
+            교강사「라이브 퀴즈」에 보이는 참여 코드와 동일합니다(서버가 대소문자를 맞춥니다). 영문·숫자, 공백 없이{" "}
             {JOIN_CODE_MIN_LENGTH}~{JOIN_CODE_MAX_LENGTH}자.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleJoin} className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="join-nickname">
+                표시 이름 (수업·라이브에 보입니다)
+              </label>
+              <Input
+                id="join-nickname"
+                value={nickname}
+                onChange={(event) => setNickname(event.target.value.slice(0, 32))}
+                placeholder="예: 김민수"
+                maxLength={32}
+                autoComplete="nickname"
+                className="h-11"
+              />
+            </div>
             <Input
               value={joinCode}
               onChange={(event) =>

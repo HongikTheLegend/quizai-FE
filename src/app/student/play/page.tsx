@@ -10,7 +10,7 @@ import { useQuizDeadlineCountdown } from "@/hooks/use-quiz-deadline-countdown";
 import { useQuizSocket } from "@/hooks/use-quiz-socket";
 import { AUTH_KEYS, getStoredUser } from "@/lib/auth-storage";
 import { coerceRenderableText } from "@/lib/normalize-quiz-shape";
-import { getRememberedSessionWsUrl } from "@/lib/session-ws-url";
+import { getRememberedJoinNickname, getRememberedSessionWsUrl } from "@/lib/session-ws-url";
 import { cn } from "@/lib/utils";
 
 function formatClock(sec: number | null): string {
@@ -41,11 +41,13 @@ function StudentPlayContent() {
     setDirectWsUrl(getRememberedSessionWsUrl(sessionId));
   }, [sessionId]);
 
+  const joinNickname = getRememberedJoinNickname(sessionId);
+
   const socket = useQuizSocket({
     sessionId,
     directWsUrl,
     enabled: sessionId.length > 0,
-    nickname: user?.name ?? "student",
+    nickname: joinNickname ?? user?.name ?? "student",
     token: token ?? undefined,
   });
 

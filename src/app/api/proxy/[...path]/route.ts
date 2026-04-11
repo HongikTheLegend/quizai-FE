@@ -343,11 +343,11 @@ const proxyRequest = async (
     return buildMockResponse(request, path);
   }
 
-  /** Render 등 업스트림에 POST /sessions/join 이 없어 404일 때 입장 API만 목으로 이어줌. 배포 후 `PROXY_JOIN_ON_UPSTREAM_404=false` 권장. */
+  /** 업스트림이 POST /sessions/join 에서 404일 때만 목 입장을 씁니다. 백엔드에 join 이 있으면 기본 끔(`PROXY_JOIN_ON_UPSTREAM_404` 미설정). */
   const routeJoined = path.join("/");
   if (
     response.status === 404 &&
-    process.env.PROXY_JOIN_ON_UPSTREAM_404 !== "false" &&
+    process.env.PROXY_JOIN_ON_UPSTREAM_404 === "true" &&
     request.method === "POST" &&
     routeJoined === "sessions/join"
   ) {
