@@ -51,10 +51,6 @@ export function useQuizSocket({
   const [liveSession, setLiveSession] = useState<LiveSessionState>(initialLiveSessionState);
 
   const url = useMemo(() => {
-    if (directWsUrl) {
-      return directWsUrl;
-    }
-
     const params = new URLSearchParams();
     if (nickname) {
       params.set("nickname", nickname);
@@ -63,6 +59,22 @@ export function useQuizSocket({
       params.set("token", token);
     }
     const query = params.toString();
+
+    if (directWsUrl?.trim()) {
+      try {
+        const u = new URL(directWsUrl.trim());
+        if (nickname) {
+          u.searchParams.set("nickname", nickname);
+        }
+        if (token) {
+          u.searchParams.set("token", token);
+        }
+        return u.toString();
+      } catch {
+        return query ? `${directWsUrl.trim()}?${query}` : directWsUrl.trim();
+      }
+    }
+
     return `${wsBaseUrl}/sessions/${sessionId}/join${query ? `?${query}` : ""}`;
   }, [directWsUrl, nickname, sessionId, token, wsBaseUrl]);
 

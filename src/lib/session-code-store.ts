@@ -1,5 +1,7 @@
 import type { Session } from "@/types/api";
 
+import { DEMO_JOIN_CODE_LENGTH } from "@/lib/join-code";
+
 const STORE_KEY = "quizai_sessions";
 
 const readSessions = (): Session[] => {
@@ -28,7 +30,7 @@ const writeSessions = (sessions: Session[]): void => {
 
 export const generateJoinCode = (): string => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join(
+  return Array.from({ length: DEMO_JOIN_CODE_LENGTH }, () => chars[Math.floor(Math.random() * chars.length)]).join(
     "",
   );
 };

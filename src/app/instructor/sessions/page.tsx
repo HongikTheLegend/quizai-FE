@@ -262,6 +262,10 @@ function InstructorSessionsPageInner() {
                   <p className="mt-1 break-all font-mono text-2xl font-bold tracking-[0.12em] text-primary sm:text-3xl md:text-4xl">
                     {session.session_code}
                   </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    수강생 메뉴「참여 코드」에는 위와 <span className="font-medium text-foreground">동일한 문자열</span>을
+                    입력합니다. (별도 4자리/6자리 구분 없음)
+                  </p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     진행 단계: <span className="font-medium text-foreground">{liveRoomPhaseLabel(session.status)}</span>
                   </p>
