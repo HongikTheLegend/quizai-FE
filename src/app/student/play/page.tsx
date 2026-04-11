@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { QuizQuestionView, formatQuizClock } from "@/components/quiz/quiz-question-view";
@@ -17,11 +17,16 @@ import {
   type LiveQuizBroadcastPayload,
 } from "@/lib/live-quiz-broadcast";
 import type { LiveSessionState } from "@/lib/quiz-ws-live-state";
-import { getRememberedJoinNickname, getRememberedSessionWsUrl } from "@/lib/session-ws-url";
+import {
+  getRememberedJoinNickname,
+  getRememberedSessionWsUrl,
+  rememberSessionWsUrl,
+} from "@/lib/session-ws-url";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 function StudentPlayContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("sessionId") ?? "";
   const user = getStoredUser();
@@ -30,19 +35,33 @@ function StudentPlayContent() {
 
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [directWsUrl, setDirectWsUrl] = useState<string | undefined>(undefined);
   /** 교강사 탭이 BroadcastChannel 로 보낸 문항(서버가 학생에게 quiz_started 를 안 줄 때 보조) */
   const [relayedActive, setRelayedActive] = useState<NonNullable<LiveSessionState["activeQuiz"]> | null>(
     null,
   );
 
+  /** 첫 페인트부터 join 응답과 동일한 ws_url 로 붙게 함(비어 있으면 NEXT_PUBLIC_WS_URL 폴백으로 잘못된 방에 연결됨). */
+  const directWsUrl = useMemo(() => {
+    if (!sessionId) {
+      return undefined;
+    }
+    const fromQuery = searchParams.get("wsUrl")?.trim();
+    if (fromQuery) {
+      return fromQuery;
+    }
+    return getRememberedSessionWsUrl(sessionId);
+  }, [sessionId, searchParams]);
+
   useEffect(() => {
     if (!sessionId) {
-      setDirectWsUrl(undefined);
       return;
     }
-    setDirectWsUrl(getRememberedSessionWsUrl(sessionId));
-  }, [sessionId]);
+    const fromQuery = searchParams.get("wsUrl")?.trim();
+    if (fromQuery) {
+      rememberSessionWsUrl(sessionId, fromQuery);
+      router.replace(`/student/play?sessionId=${encodeURIComponent(sessionId)}`, { scroll: false });
+    }
+  }, [sessionId, searchParams, router]);
 
   useEffect(() => {
     if (!sessionId || typeof BroadcastChannel === "undefined") {
@@ -204,9 +223,7 @@ function StudentPlayContent() {
                 <CardContent className="py-14 text-center">
                   <p className="text-base font-medium text-foreground">문항 대기</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {socket.isConnected
-                      ? "강사가 「다음 문항」을 열면 여기에 표시됩니다. 같은 PC에서 교강사 탭을 켜 두면 화면이 동기화됩니다."
-                      : "실시간 서버에 연결하는 중입니다…"}
+                    {socket.isConnected ? "문항이 열리면 표시됩니다." : "연결 중…"}
                   </p>
                 </CardContent>
               </Card>

@@ -334,7 +334,7 @@ function InstructorSessionsPageInner() {
     if (localQuestions.length > 0) {
       const next = localRoundIndex + 1;
       if (next >= localQuestions.length) {
-        toast.info("저장된 세트 문항은 여기까지예요. 서버에서 다음 문항이 열리면 화면이 갱신됩니다.");
+        toast.info("세트의 마지막 문항입니다.");
       } else {
         setLocalRoundIndex(next);
         setLocalRoundStartedAt(Date.now());
@@ -350,9 +350,7 @@ function InstructorSessionsPageInner() {
       <Card>
         <CardHeader>
           <CardTitle>방 열기</CardTitle>
-          <CardDescription>
-            퀴즈 세트와 제한 시간을 정해 주세요. 열린 방은 이 브라우저에 저장되어 새로고침해도 같은 참여코드가 유지됩니다.
-          </CardDescription>
+          <CardDescription>퀴즈 세트와 제한 시간을 정합니다.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={handleStartSession} className="grid gap-3 md:grid-cols-[1fr_140px_auto]">
@@ -425,9 +423,7 @@ function InstructorSessionsPageInner() {
                 {startSessionMutation.isPending ? "만드는 중…" : "퀴즈방 열기"}
               </Button>
               {session ? (
-                <p className="text-xs text-muted-foreground">
-                  이미 방이 열려 있어요. 새 참여코드가 필요하면 아래에서 방을 종료한 뒤 다시 열어 주세요.
-                </p>
+                <p className="text-xs text-muted-foreground">새 방은 아래에서 종료한 뒤 열 수 있습니다.</p>
               ) : null}
             </div>
           </form>
@@ -469,11 +465,7 @@ function InstructorSessionsPageInner() {
           <CardHeader className="space-y-2 pb-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle>같이 보는 퀴즈</CardTitle>
-                <CardDescription>
-                  수강생 화면과 같은 문항·보기·타이머예요. 이 브라우저에 저장된 세트가 있으면 「다음 문항」 즉시
-                  반영되고, 서버 이벤트가 오면 그쪽과 맞춰집니다.
-                </CardDescription>
+                <CardTitle>현재 문항</CardTitle>
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -505,9 +497,7 @@ function InstructorSessionsPageInner() {
                 <div className="w-full max-w-lg rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-12 text-center">
                   <p className="text-base font-medium text-foreground">문항 대기</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {localQuestions.length === 0
-                      ? "이 브라우저에 해당 퀴즈 세트 기록이 없으면, 서버에서 문항이 열릴 때까지 기다리거나 퀴즈 빌더에서 같은 세트로 저장해 주세요."
-                      : "「다음 문항」을 누르면 여기에 첫 문항이 열려요."}
+                    {localQuestions.length === 0 ? "문항 대기" : "「다음 문항」을 눌러 시작하세요."}
                   </p>
                 </div>
               )}

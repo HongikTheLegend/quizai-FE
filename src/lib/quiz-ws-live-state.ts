@@ -199,23 +199,71 @@ function tryParseQuizStartedEvent(raw: unknown, o: { type?: string; payload?: un
   };
 }
 
+function normalizeQuizEventTypeName(t: string): string {
+  const key = t.trim().toLowerCase().replace(/-/g, "_");
+  const aliases: Record<string, string> = {
+    quiz_start: "quiz_started",
+    start_quiz: "quiz_started",
+    new_question: "quiz_started",
+    question_started: "quiz_started",
+    quiz_question: "quiz_started",
+    current_question: "quiz_started",
+    broadcast_quiz: "quiz_started",
+    quiz: "quiz_started",
+  };
+  if (key === "quiz_started") {
+    return "quiz_started";
+  }
+  return aliases[key] ?? t.trim();
+}
+
 /** Lenient parse: unknown shapes fall back to null (caller may still use last raw message). */
 export const tryParseQuizWsEvent = (raw: unknown): QuizWsEvent | null => {
-  if (!raw || typeof raw !== "object") {
+  if (raw === null || raw === undefined) {
     return null;
   }
-  const o = raw as { type?: string; payload?: unknown };
-  const tRaw = o.type;
+  if (Array.isArray(raw)) {
+    return raw.length > 0 ? tryParseQuizWsEvent(raw[0]) : null;
+  }
+  if (typeof raw !== "object") {
+    return null;
+  }
+
+  const o = raw as Record<string, unknown>;
+  const tRaw =
+    typeof o.type === "string"
+      ? o.type
+      : typeof o.event === "string"
+        ? o.event
+        : typeof o.action === "string"
+          ? o.action
+          : null;
+
+  const payloadRoot = o.payload ?? o.data ?? o.body;
+
+  /** type 없이 문항 필드만 오는 백엔드 */
   if (typeof tRaw !== "string") {
+    const hasQuizShape =
+      (typeof o.quiz_id === "string" && o.quiz_id.trim()) ||
+      typeof o.quizId === "string" ||
+      o.options !== undefined ||
+      o.choices !== undefined;
+    if (hasQuizShape) {
+      return tryParseQuizStartedEvent(raw, { type: "quiz_started", payload: undefined });
+    }
     return null;
   }
-  const t = tRaw === "quiz_start" ? "quiz_started" : tRaw;
 
+  const t = normalizeQuizEventTypeName(tRaw);
   if (t === "quiz_started") {
-    return tryParseQuizStartedEvent(raw, { ...o, type: "quiz_started" });
+    const merged =
+      payloadRoot && typeof payloadRoot === "object"
+        ? { ...o, type: "quiz_started", payload: payloadRoot }
+        : { ...o, type: "quiz_started" };
+    return tryParseQuizStartedEvent(merged, merged as { type: string; payload?: unknown });
   }
 
-  const p = o.payload;
+  const p = payloadRoot;
   if (!p || typeof p !== "object") {
     return null;
   }

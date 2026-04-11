@@ -47,7 +47,9 @@ export default function StudentJoinPage() {
       rememberSessionWsUrl(data.session_id, data.ws_url);
       rememberJoinNickname(data.session_id, displayName);
       toast.success("퀴즈 화면으로 이동합니다.");
-      router.push(`/student/play?sessionId=${encodeURIComponent(data.session_id)}`);
+      router.push(
+        `/student/play?sessionId=${encodeURIComponent(data.session_id)}&wsUrl=${encodeURIComponent(data.ws_url)}`,
+      );
     } catch (error) {
       const message =
         error instanceof Error
