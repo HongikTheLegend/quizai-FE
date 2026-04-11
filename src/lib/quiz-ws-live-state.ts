@@ -31,7 +31,13 @@ export type LiveSessionState = {
     time_limit: number;
     startedAt: number;
   } | null;
-  answerProgress: { answered: number; total: number; rate: number } | null;
+  /** 서버가 보내는 집계(보기별 선택 수 등). 없으면 빈 배열. */
+  answerProgress: {
+    answered: number;
+    total: number;
+    rate: number;
+    distribution: number[];
+  } | null;
 };
 
 export const initialLiveSessionState = (): LiveSessionState => ({
@@ -83,6 +89,7 @@ export const reduceLiveSessionState = (
           answered: event.payload.answered,
           total: event.payload.total,
           rate: event.payload.rate,
+          distribution: Array.isArray(event.payload.distribution) ? event.payload.distribution : [],
         },
       };
     case "participant_answer": {
@@ -163,21 +170,19 @@ export const tryParseQuizWsEvent = (raw: unknown): QuizWsEvent | null => {
         rate?: number;
         distribution?: number[];
       };
-      if (
-        typeof pl.total !== "number" ||
-        typeof pl.answered !== "number" ||
-        typeof pl.rate !== "number" ||
-        !Array.isArray(pl.distribution)
-      ) {
+      if (typeof pl.total !== "number" || typeof pl.answered !== "number" || typeof pl.rate !== "number") {
         return null;
       }
+      const distribution = Array.isArray(pl.distribution)
+        ? pl.distribution.map((n) => (typeof n === "number" && Number.isFinite(n) ? n : 0))
+        : [];
       return {
         type: "answer_update",
         payload: {
           total: pl.total,
           answered: pl.answered,
           rate: pl.rate,
-          distribution: pl.distribution as number[],
+          distribution,
         },
       };
     }

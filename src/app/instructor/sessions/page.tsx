@@ -301,15 +301,17 @@ function InstructorSessionsPageInner() {
       <Card className="shadow-sm">
         <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle>라이브 활동</CardTitle>
-            <CardDescription>지금 퀴즈방에서 일어나는 일을 쉬운 말로 보여 줍니다.</CardDescription>
+            <CardTitle>실시간 참여 · 제출 현황</CardTitle>
+            <CardDescription>
+              학생이 입장·답안을 보낼 때마다 서버가 WebSocket 이벤트를 밀어 주면, 아래 숫자와 표가 바로 갱신됩니다.
+            </CardDescription>
           </div>
           <ConnectionStatus isConnected={socket.isConnected} />
         </CardHeader>
         <CardContent className="space-y-4">
           {!sessionId ? (
             <p className="rounded-xl border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
-              위에서 퀴즈방을 연 뒤에 실시간 활동이 여기에 표시됩니다.
+              위에서 퀴즈방을 연 뒤에 참여 인원·제출 집계가 여기에 표시됩니다.
             </p>
           ) : (
             <>
@@ -330,9 +332,13 @@ function InstructorSessionsPageInner() {
                 live={socket.liveSession}
                 remainingSec={remainingSec}
                 isConnected={socket.isConnected}
+                showConnectionChip={false}
               />
-              <p className="rounded-xl border border-border/80 bg-card p-4 text-sm leading-relaxed">{activitySummary}</p>
-              <TechDetails title="최근 이벤트 기록">
+              <p className="rounded-xl border border-border/80 bg-muted/20 p-3 text-sm leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground">최근 알림: </span>
+                {activitySummary}
+              </p>
+              <TechDetails title="최근 WebSocket 이벤트 (원문)">
                 {rawEventText ? (
                   <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-[11px] text-muted-foreground">
                     {rawEventText}
@@ -344,11 +350,10 @@ function InstructorSessionsPageInner() {
             </>
           )}
 
-          <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-            <p className="mb-1 text-xs font-semibold text-muted-foreground">개발/테스트용 · 답안 보내기</p>
+          <TechDetails title="개발자용 · 브라우저에서 답안 전송 시뮬">
             <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
-              위쪽 요약은 <span className="font-medium text-foreground">서버가 보내는 WebSocket 이벤트</span>로만
-              채워집니다. 실제 문항 송출은 백엔드(강사 콘솔)에서 열어야 하고, 아래는 연결된 소켓으로만 전송됩니다.
+              수업 운영은 위 표·집계만 보면 됩니다. 아래는 소켓 메시지 형식을 맞춰 볼 때만 쓰세요. 실제 문항은 보통
+              백엔드/강사 쪽에서 시작합니다.
             </p>
             <div className="grid gap-2 md:grid-cols-3">
               <Input
@@ -377,7 +382,7 @@ function InstructorSessionsPageInner() {
                 테스트 제출
               </Button>
             </div>
-          </div>
+          </TechDetails>
         </CardContent>
       </Card>
 

@@ -12,6 +12,8 @@ interface LiveQuizStatusPanelProps {
   /** 수강생 본인이 현재 문항을 제출했는지 (서버 개별 이벤트 없을 때 UI용) */
   selfSubmitted?: boolean;
   variant: "student" | "instructor" | "admin";
+  /** 상단에 연결 뱃지를 둡니다. 부모에 이미 있으면 false. */
+  showConnectionChip?: boolean;
   className?: string;
 }
 
@@ -30,6 +32,7 @@ export function LiveQuizStatusPanel({
   isConnected,
   selfSubmitted,
   variant,
+  showConnectionChip = true,
   className,
 }: LiveQuizStatusPanelProps) {
   const roster = live.participants ?? [];
@@ -39,6 +42,14 @@ export function LiveQuizStatusPanel({
   const pct =
     ap && ap.total > 0 ? Math.min(100, Math.round((ap.answered / ap.total) * 100)) : null;
   const showRoster = variant !== "student";
+  const dist = ap?.distribution ?? [];
+  const options = live.activeQuiz?.options ?? [];
+  const showDistribution =
+    variant !== "student" &&
+    live.activeQuiz &&
+    dist.length > 0 &&
+    dist.length === options.length;
+  const distMax = showDistribution ? Math.max(1, ...dist) : 1;
 
   return (
     <div
@@ -53,10 +64,10 @@ export function LiveQuizStatusPanel({
           <p className="mt-1 text-sm text-muted-foreground">
             {variant === "student"
               ? "강사가 연 퀴즈방 기준으로 갱신됩니다."
-              : "같은 퀴즈방에 연결된 모든 클라이언트가 같은 수치를 봅니다."}
+              : "WebSocket 이벤트(session_joined, answer_update 등)로 이 화면이 갱신됩니다."}
           </p>
         </div>
-        <ConnectionStatus isConnected={isConnected} />
+        {showConnectionChip ? <ConnectionStatus isConnected={isConnected} /> : null}
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -96,6 +107,31 @@ export function LiveQuizStatusPanel({
         </div>
       </div>
 
+      {showDistribution ? (
+        <div className="mt-4 rounded-xl border border-border/70 bg-card/60 p-3">
+          <p className="mb-2 text-xs font-semibold text-muted-foreground">보기별 선택 수 (서버 집계)</p>
+          <ul className="space-y-2">
+            {options.map((label, idx) => {
+              const count = dist[idx] ?? 0;
+              const w = Math.round((count / distMax) * 100);
+              return (
+                <li key={`dist-${idx}`} className="text-xs">
+                  <div className="flex justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                      {idx + 1}. {coerceRenderableText(label)}
+                    </span>
+                    <span className="shrink-0 font-mono font-medium tabular-nums">{count}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary/80" style={{ width: `${w}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+
       {variant === "student" && selfSubmitted !== undefined ? (
         <p className="mt-3 text-center text-sm font-medium text-primary">
           {selfSubmitted ? "이 문항은 제출했어요. 집계는 강사·운영 화면에서 확인됩니다." : "답을 고른 뒤 제출하면 여기에 반영돼요."}
@@ -104,7 +140,7 @@ export function LiveQuizStatusPanel({
 
       {showRoster ? (
         <div className="mt-4">
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">개별 참여 현황</p>
+          <p className="mb-2 text-xs font-semibold text-muted-foreground">참여자 목록 · 이번 문항 제출 여부</p>
           <div className="max-h-48 overflow-auto rounded-xl border border-border/70">
             <table className="w-full text-left text-xs">
               <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
