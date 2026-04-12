@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useGenerateQuizMutation } from "@/hooks/api/use-generate-quiz-mutation";
 import { useLecturesQuery } from "@/hooks/api/use-lectures-query";
 import { useUploadLectureMutation } from "@/hooks/api/use-upload-lecture-mutation";
+import { MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES } from "@/services/lecture-service";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -470,6 +471,11 @@ export default function InstructorLecturesPage() {
                 onChange={(event) => setPdfFile(event.target.files?.[0] ?? null)}
                 required
               />
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Vercel 배포에서 기본 프록시(<code className="rounded bg-muted px-1">/api/proxy</code>)를 쓰는 경우,
+                PDF는 약 {Math.round(MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES / (1024 * 1024))}MB 이하를 권장합니다. 그보다 크면{" "}
+                <span className="font-medium text-foreground">413 Content Too Large</span>가 날 수 있습니다.
+              </p>
               <Button type="submit" disabled={isBusy} className="w-full">
                 {uploadLectureMutation.isPending
                   ? "업로드 중…"

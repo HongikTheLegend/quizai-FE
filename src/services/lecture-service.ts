@@ -1,6 +1,15 @@
+import axios from "axios";
+import { toast } from "sonner";
+
 import { apiClient, apiRequest } from "@/lib/api-client";
 import { coerceRenderableText } from "@/lib/normalize-quiz-shape";
 import type { Lecture, LectureEnrollResponse, LecturesListResponse, UploadLectureRequest } from "@/types/api";
+
+/**
+ * `NEXT_PUBLIC_API_URL` 이 비어 있으면 브라우저는 `/api/proxy` 로 올립니다.
+ * Vercel Serverless는 요청 본문이 수 MB를 넘기 쉽게 **413 Content Too Large** 를 반환합니다(멀티파트 오버헤드 포함).
+ */
+export const MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES = 4 * 1024 * 1024;
 
 const normalizeLecture = (raw: unknown): Lecture => {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -44,6 +53,14 @@ export const lectureService = {
   },
 
   async uploadPdf(payload: UploadLectureRequest): Promise<Lecture> {
+    if (payload.file.size > MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES) {
+      const mb = (payload.file.size / (1024 * 1024)).toFixed(1);
+      toast.error(
+        `파일이 너무 큽니다 (${mb}MB). Vercel의 /api/proxy 경로는 보통 약 4MB를 넘기면 413이 납니다. PDF를 압축하거나 나눈 뒤 다시 시도해 주세요.`,
+      );
+      throw new Error("FILE_TOO_LARGE_FOR_VERCEL_PROXY");
+    }
+
     const formData = new FormData();
     formData.append("file", payload.file);
     if (payload.title) {
@@ -52,12 +69,21 @@ export const lectureService = {
     if (payload.lectureId) {
       formData.append("lecture_id", payload.lectureId);
     }
-    const response = await apiClient.post<LectureUploadResponse>("/lectures/upload", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    try {
+      const response = await apiClient.post<LectureUploadResponse>("/lectures/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-    return normalizeLecture(response.data as unknown);
+      return normalizeLecture(response.data as unknown);
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 413) {
+        toast.error(
+          "업로드 용량 제한(413): 요청이 Vercel 서버 한도를 넘었습니다. 더 작은 PDF를 사용하거나, 큰 파일은 백엔드 URL로 직접 올리도록 NEXT_PUBLIC_API_URL 을 Render 주소로 두는 방식을 검토해 주세요.",
+        );
+      }
+      throw e;
+    }
   },
 };
