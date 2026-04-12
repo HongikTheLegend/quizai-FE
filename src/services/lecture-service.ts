@@ -11,6 +11,17 @@ import type { Lecture, LectureEnrollResponse, LecturesListResponse, UploadLectur
  */
 export const MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES = 4 * 1024 * 1024;
 
+/** 한도 초과 시 true 반환(토스트만 이미 띄움). */
+export function notifyIfLectureFileTooLarge(file: File): boolean {
+  if (file.size <= MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES) {
+    return false;
+  }
+  const mb = (file.size / (1024 * 1024)).toFixed(1);
+  const limMb = Math.round(MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES / (1024 * 1024));
+  toast.error(`이 파일은 업로드할 수 없습니다. (${mb}MB — 약 ${limMb}MB 이하만 가능해요)`);
+  return true;
+}
+
 const normalizeLecture = (raw: unknown): Lecture => {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return {
@@ -53,11 +64,7 @@ export const lectureService = {
   },
 
   async uploadPdf(payload: UploadLectureRequest): Promise<Lecture> {
-    if (payload.file.size > MAX_LECTURE_UPLOAD_VIA_PROXY_BYTES) {
-      const mb = (payload.file.size / (1024 * 1024)).toFixed(1);
-      toast.error(
-        `파일이 너무 큽니다 (${mb}MB). Vercel의 /api/proxy 경로는 보통 약 4MB를 넘기면 413이 납니다. PDF를 압축하거나 나눈 뒤 다시 시도해 주세요.`,
-      );
+    if (notifyIfLectureFileTooLarge(payload.file)) {
       throw new Error("FILE_TOO_LARGE_FOR_VERCEL_PROXY");
     }
 
@@ -79,9 +86,7 @@ export const lectureService = {
       return normalizeLecture(response.data as unknown);
     } catch (e) {
       if (axios.isAxiosError(e) && e.response?.status === 413) {
-        toast.error(
-          "업로드 용량 제한(413): 요청이 Vercel 서버 한도를 넘었습니다. 더 작은 PDF를 사용하거나, 큰 파일은 백엔드 URL로 직접 올리도록 NEXT_PUBLIC_API_URL 을 Render 주소로 두는 방식을 검토해 주세요.",
-        );
+        toast.error("이 파일은 서버 용량 제한으로 업로드할 수 없습니다. 더 작은 파일로 시도해 주세요.");
       }
       throw e;
     }
