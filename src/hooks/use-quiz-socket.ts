@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -10,7 +10,12 @@ import {
   type LiveSessionState,
   type QuizWsEvent,
 } from "@/lib/quiz-ws-live-state";
-import { logQuizWs, redactWsUrlForLog, truncateForLog } from "@/lib/quiz-ws-debug";
+import {
+  logQuizWs,
+  quizWsDebugEnabled,
+  redactWsUrlForLog,
+  truncateForLog,
+} from "@/lib/quiz-ws-debug";
 
 interface UseQuizSocketOptions {
   sessionId: string;
@@ -92,6 +97,34 @@ export function useQuizSocket({
     return `${wsBaseUrl}/sessions/${encodeURIComponent(sessionId)}/join${query ? `?${query}` : ""}`;
   }, [directWsUrl, nickname, sessionId, token, wsBaseUrl]);
 
+  const urlRef = useRef(url);
+  const onQuizStartedRef = useRef(onQuizStarted);
+  const onAnswerUpdateRef = useRef(onAnswerUpdate);
+  const onSessionEndedRef = useRef(onSessionEnded);
+
+  useLayoutEffect(() => {
+    urlRef.current = url;
+    onQuizStartedRef.current = onQuizStarted;
+    onAnswerUpdateRef.current = onAnswerUpdate;
+    onSessionEndedRef.current = onSessionEnded;
+  }, [url, onQuizStarted, onAnswerUpdate, onSessionEnded]);
+
+  /** `url`/콜백 변경이 메인 effect 를 다시 돌리면 cleanup 이 재연결 타이머를 지울 수 있어 ref 로 분리합니다. */
+  const prevUrlReconnectRef = useRef<{ sessionId: string; url: string }>({ sessionId: "", url: "" });
+
+  useEffect(() => {
+    if (!enabled || !sessionId) {
+      prevUrlReconnectRef.current = { sessionId: "", url: "" };
+      return;
+    }
+    const prev = prevUrlReconnectRef.current;
+    if (prev.sessionId === sessionId && prev.url.length > 0 && prev.url !== url) {
+      logQuizWs(debugLabel, "WebSocket URL 변경(동일 세션) → 재연결");
+      socketRef.current?.close();
+    }
+    prevUrlReconnectRef.current = { sessionId, url };
+  }, [enabled, sessionId, url, debugLabel]);
+
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
@@ -104,6 +137,8 @@ export function useQuizSocket({
 
   useEffect(() => {
     if (!enabled || !sessionId) {
+      /* 라이브 구독 종료 시 UI만 초기화(WebSocket 미사용). 규칙은 동기 setState 허용 예외. */
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset when leaving live mode
       setLiveSession(initialLiveSessionState());
       setLastEvent(null);
       setConnectionAttempt(0);
@@ -152,13 +187,13 @@ export function useQuizSocket({
             setLiveSession((prev) => reduceLiveSessionState(prev, parsed));
 
             if (parsed.type === "quiz_started") {
-              onQuizStarted?.(parsed);
+              onQuizStartedRef.current?.(parsed);
             }
             if (parsed.type === "answer_update") {
-              onAnswerUpdate?.(parsed);
+              onAnswerUpdateRef.current?.(parsed);
             }
             if (parsed.type === "session_ended") {
-              onSessionEnded?.(parsed);
+              onSessionEndedRef.current?.(parsed);
               toast.info("이번 퀴즈가 종료되었습니다.");
             }
           } else {
@@ -213,13 +248,14 @@ export function useQuizSocket({
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
+      const connectUrl = urlRef.current;
       try {
         logQuizWs(debugLabel, "연결 시도", {
           sessionId,
-          url: redactWsUrlForLog(url),
+          url: redactWsUrlForLog(connectUrl),
           hint: "교강사·수강생 이 sessionId 가 동일해야 같은 방입니다. join/start 응답의 session_id 와 비교하세요.",
         });
-        const socket = new WebSocket(url);
+        const socket = new WebSocket(connectUrl);
         socketRef.current = socket;
         socket.onopen = () => {
           if (cancelled) {
@@ -228,7 +264,7 @@ export function useQuizSocket({
           attempt = 0;
           setConnectionAttempt(0);
           setIsConnected(true);
-          logQuizWs(debugLabel, "연결됨 (OPEN)", { sessionId, url: redactWsUrlForLog(url) });
+          logQuizWs(debugLabel, "연결됨 (OPEN)", { sessionId, url: redactWsUrlForLog(connectUrl) });
           if (!shownConnectToastRef.current) {
             shownConnectToastRef.current = true;
             toast.success("실시간 퀴즈방에 연결되었습니다.");
@@ -264,15 +300,42 @@ export function useQuizSocket({
       socketRef.current = null;
       setIsConnected(false);
     };
-  }, [
-    enabled,
-    onAnswerUpdate,
-    onQuizStarted,
-    onSessionEnded,
-    sessionId,
-    url,
-    debugLabel,
-  ]);
+  }, [enabled, sessionId, debugLabel]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !quizWsDebugEnabled()) {
+      return;
+    }
+    const w = window as Window & { __quizWsStatus?: () => void };
+    w.__quizWsStatus = () => {
+      const s = socketRef.current;
+      const rs = s?.readyState;
+      const readyStateLabel =
+        rs === undefined
+          ? "NO_SOCKET"
+          : rs === WebSocket.CONNECTING
+            ? "CONNECTING"
+            : rs === WebSocket.OPEN
+              ? "OPEN"
+              : rs === WebSocket.CLOSING
+                ? "CLOSING"
+                : rs === WebSocket.CLOSED
+                  ? "CLOSED"
+                  : String(rs);
+      console.log("[Quiz WS][inspect]", {
+        label: debugLabel,
+        sessionId,
+        url: redactWsUrlForLog(url),
+        readyState: rs,
+        readyStateLabel,
+        isConnected,
+        connectionAttempt,
+      });
+    };
+    return () => {
+      delete w.__quizWsStatus;
+    };
+  }, [connectionAttempt, debugLabel, isConnected, sessionId, url]);
 
   const sendAnswer = useCallback(
     (quizId: string, selectedOption: number) => {
