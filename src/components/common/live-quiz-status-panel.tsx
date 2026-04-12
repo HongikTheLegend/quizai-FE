@@ -42,6 +42,7 @@ export function LiveQuizStatusPanel({
   const pct =
     ap && ap.total > 0 ? Math.min(100, Math.round((ap.answered / ap.total) * 100)) : null;
   const showRoster = variant !== "student";
+  const showRoleCol = showRoster && roster.some((p) => Boolean(p.role?.trim()));
   const dist = ap?.distribution ?? [];
   const options = live.activeQuiz?.options ?? [];
   const showDistribution =
@@ -133,6 +134,7 @@ export function LiveQuizStatusPanel({
               <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                 <tr>
                   <th className="px-3 py-2 font-semibold">표시 이름</th>
+                  {showRoleCol ? <th className="px-3 py-2 font-semibold">역할</th> : null}
                   <th className="px-3 py-2 font-semibold">입장</th>
                   <th className="px-3 py-2 font-semibold">이번 문항</th>
                 </tr>
@@ -140,17 +142,25 @@ export function LiveQuizStatusPanel({
               <tbody>
                 {roster.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">
+                    <td
+                      colSpan={showRoleCol ? 4 : 3}
+                      className="px-3 py-4 text-center text-muted-foreground"
+                    >
                       아직 표시할 참여자가 없습니다.
                     </td>
                   </tr>
                 ) : (
                   roster.map((p, idx) => (
                     <tr
-                      key={`${idx}-${coerceRenderableText(p.nickname) || "u"}`}
+                      key={`${p.userId ?? "noid"}-${coerceRenderableText(p.nickname) || "u"}-${idx}`}
                       className="border-t border-border/50"
                     >
                       <td className="px-3 py-2 font-medium">{coerceRenderableText(p.nickname) || "—"}</td>
+                      {showRoleCol ? (
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {p.role ? coerceRenderableText(p.role) : "—"}
+                        </td>
+                      ) : null}
                       <td className="px-3 py-2 text-muted-foreground">
                         {new Date(p.joinedAt).toLocaleTimeString(undefined, {
                           hour: "2-digit",

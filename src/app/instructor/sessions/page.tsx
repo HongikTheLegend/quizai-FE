@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -33,7 +33,8 @@ import type { QuizWsEvent } from "@/lib/quiz-ws-live-state";
 import { coerceRenderableText } from "@/lib/normalize-quiz-shape";
 import { liveRoomPhaseLabel } from "@/lib/session-user-copy";
 import { cn } from "@/lib/utils";
-import type { QuizQuestion, Session, StartSessionRequest } from "@/types/api";
+import { sessionService } from "@/services/session-service";
+import type { QuizQuestion, Session, SessionResult, StartSessionRequest } from "@/types/api";
 
 function describeLiveEvent(event: QuizWsEvent | null): string {
   if (!event) {
@@ -238,6 +239,9 @@ function InstructorSessionsPageInner() {
 
   const mergedLiveSession = useMemo(() => {
     const base = socket.liveSession;
+    if (base.liveEnded) {
+      return base;
+    }
     if (base.activeQuiz) {
       return base;
     }
@@ -247,13 +251,23 @@ function InstructorSessionsPageInner() {
     return base;
   }, [socket.liveSession, displayQuiz]);
 
-  const deadlineMs = displayQuiz ? displayQuiz.startedAt + displayQuiz.time_limit * 1000 : null;
+  const deadlineMs =
+    socket.liveSession.liveEnded || !displayQuiz
+      ? null
+      : displayQuiz.startedAt + displayQuiz.time_limit * 1000;
   const remainingSec = useQuizDeadlineCountdown(deadlineMs);
 
   useEffect(() => {
     setLocalRoundIndex(-1);
     setLocalRoundStartedAt(null);
   }, [session?.session_id]);
+
+  useEffect(() => {
+    if (socket.lastEvent?.type === "session_ended") {
+      setLocalRoundIndex(-1);
+      setLocalRoundStartedAt(null);
+    }
+  }, [socket.lastEvent]);
 
   const activitySummary = useMemo(() => {
     if (sessionId && socket.isConnected && !socket.lastEvent) {
@@ -266,6 +280,28 @@ function InstructorSessionsPageInner() {
     [socket.lastEvent],
   );
 
+  const [sessionResult, setSessionResult] = useState<SessionResult | null>(null);
+  const [sessionResultLoading, setSessionResultLoading] = useState(false);
+  const [sessionResultError, setSessionResultError] = useState<string | null>(null);
+
+  const loadSessionResult = useCallback(async () => {
+    if (!session?.session_id) {
+      return;
+    }
+    setSessionResultLoading(true);
+    setSessionResultError(null);
+    try {
+      const data = await sessionService.getResult(session.session_id);
+      setSessionResult(data);
+      toast.success("세션 결과를 불러왔습니다.");
+    } catch {
+      setSessionResultError("결과를 불러오지 못했습니다. 세션이 종료됐는지 확인해 주세요.");
+      toast.error("세션 결과 요청에 실패했습니다.");
+    } finally {
+      setSessionResultLoading(false);
+    }
+  }, [session?.session_id]);
+
   const handleStartSession = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -275,6 +311,8 @@ function InstructorSessionsPageInner() {
         time_limit: Number(timeLimit),
       };
       const startedSession = await startSessionMutation.mutateAsync(payload);
+      setSessionResult(null);
+      setSessionResultError(null);
       setSession(startedSession);
       writePersistedInstructorLiveSession({
         session: startedSession,
@@ -291,6 +329,8 @@ function InstructorSessionsPageInner() {
   const handleEndLiveSession = () => {
     clearPersistedInstructorLiveSession();
     setSession(null);
+    setSessionResult(null);
+    setSessionResultError(null);
     setLocalRoundIndex(-1);
     setLocalRoundStartedAt(null);
     toast.success("저장된 퀴즈방을 지웠어요. 새 참여코드로 다시 열 수 있어요.");
@@ -460,12 +500,28 @@ function InstructorSessionsPageInner() {
         </CardContent>
       </Card>
 
+      {session && socket.liveSession.liveEnded ? (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/[0.08] px-4 py-3 text-sm text-foreground">
+          <p className="font-semibold text-amber-950 dark:text-amber-100">라이브 퀴즈가 종료되었습니다.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            수강생 화면도 종료 안내를 받았을 거예요. 아래에서 결과를 확인하거나 방을 정리할 수 있습니다.
+          </p>
+        </div>
+      ) : null}
+
       {session ? (
         <Card>
           <CardHeader className="space-y-2 pb-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle>현재 문항</CardTitle>
+                {displayQuiz &&
+                displayQuiz.question_total != null &&
+                displayQuiz.question_index != null ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    서버 기준 진행 {(displayQuiz.question_index ?? 0) + 1} / {displayQuiz.question_total}
+                  </p>
+                ) : null}
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -506,7 +562,7 @@ function InstructorSessionsPageInner() {
               type="button"
               className="w-full sm:w-auto"
               onClick={handleNextQuestion}
-              disabled={!sessionId || !socket.isConnected}
+              disabled={!sessionId || !socket.isConnected || socket.liveSession.liveEnded}
             >
               다음 문항
             </Button>
@@ -586,6 +642,71 @@ function InstructorSessionsPageInner() {
           </TechDetails>
         </CardContent>
       </Card>
+
+      {session ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>세션 결과</CardTitle>
+            <CardDescription>종료 후 집계 API로 요약을 불러옵니다.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={loadSessionResult} disabled={sessionResultLoading}>
+                {sessionResultLoading ? "불러오는 중…" : "결과 불러오기"}
+              </Button>
+            </div>
+            {sessionResultError ? (
+              <p className="text-sm text-destructive">{sessionResultError}</p>
+            ) : null}
+            {sessionResult ? (
+              <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">참여 인원</p>
+                    <p className="mt-0.5 text-lg font-semibold">{sessionResult.total_students}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">평균 점수</p>
+                    <p className="mt-0.5 text-lg font-semibold">{Math.round(sessionResult.avg_score * 10) / 10}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">등급 분포</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      우수 {sessionResult.grade_distribution.excellent} · 보통{" "}
+                      {sessionResult.grade_distribution.needs_practice} · 보완{" "}
+                      {sessionResult.grade_distribution.needs_review}
+                    </p>
+                  </div>
+                </div>
+                {sessionResult.students.length > 0 ? (
+                  <div className="max-h-56 overflow-auto rounded-lg border border-border">
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-muted/90">
+                        <tr>
+                          <th className="px-3 py-2">닉네임</th>
+                          <th className="px-3 py-2">점수</th>
+                          <th className="px-3 py-2">등급</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sessionResult.students.map((s) => (
+                          <tr key={s.student_id} className="border-t border-border/60">
+                            <td className="px-3 py-2 font-medium">{s.nickname}</td>
+                            <td className="px-3 py-2 tabular-nums">{s.score}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{s.grade}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">아직 학생별 결과 행이 없습니다.</p>
+                )}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <TechDetails title="공지 보내기 (선택)">
         <div className="grid gap-2 md:grid-cols-[1fr_auto]">

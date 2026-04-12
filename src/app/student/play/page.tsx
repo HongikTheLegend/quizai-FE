@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -23,6 +23,8 @@ import {
   rememberSessionWsUrl,
 } from "@/lib/session-ws-url";
 import { cn } from "@/lib/utils";
+import { sessionService } from "@/services/session-service";
+import type { SessionStudentResult } from "@/types/api";
 import Link from "next/link";
 
 function StudentPlayContent() {
@@ -35,6 +37,8 @@ function StudentPlayContent() {
 
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [myResultRow, setMyResultRow] = useState<SessionStudentResult | null>(null);
+  const [resultLoading, setResultLoading] = useState(false);
   /** 교강사 탭이 BroadcastChannel 로 보낸 문항(서버가 학생에게 quiz_started 를 안 줄 때 보조) */
   const [relayedActive, setRelayedActive] = useState<NonNullable<LiveSessionState["activeQuiz"]> | null>(
     null,
@@ -129,8 +133,52 @@ function StudentPlayContent() {
     setSubmitted(false);
   }, [effectiveActive?.quiz_id, effectiveActive?.startedAt]);
 
+  useEffect(() => {
+    setMyResultRow(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (socket.liveSession.liveEnded) {
+      setRelayedActive(null);
+    }
+  }, [socket.liveSession.liveEnded]);
+
   const deadlineMs = effectiveActive ? effectiveActive.startedAt + effectiveActive.time_limit * 1000 : null;
   const remainingSec = useQuizDeadlineCountdown(deadlineMs);
+
+  const liveEnded = socket.liveSession.liveEnded;
+  const questionProgressLabel = useMemo(() => {
+    const q = effectiveActive;
+    if (!q?.question_total || q.question_index === undefined) {
+      return null;
+    }
+    return `${q.question_index + 1} / ${q.question_total}`;
+  }, [effectiveActive]);
+
+  const timeUpOnCurrent =
+    Boolean(effectiveActive) && remainingSec !== null && remainingSec <= 0 && !liveEnded;
+
+  const loadMyResult = useCallback(async () => {
+    if (!sessionId || !user?.id) {
+      toast.error("로그인 정보가 없어 결과를 불러올 수 없습니다.");
+      return;
+    }
+    setResultLoading(true);
+    try {
+      const res = await sessionService.getResult(sessionId);
+      const mine = res.students.find((s) => s.student_id === user.id) ?? null;
+      setMyResultRow(mine);
+      if (!mine) {
+        toast.info("이 세션 집계에 본인 행이 없습니다. 강사에게 문의해 주세요.");
+      } else {
+        toast.success("내 결과를 불러왔습니다.");
+      }
+    } catch {
+      toast.error("결과를 불러오지 못했습니다.");
+    } finally {
+      setResultLoading(false);
+    }
+  }, [sessionId, user?.id]);
 
   const handleSubmit = () => {
     if (!currentQuestion) {
@@ -138,6 +186,10 @@ function StudentPlayContent() {
     }
     if (selectedOption === null) {
       toast.error("답을 고른 뒤 제출해주세요.");
+      return;
+    }
+    if (remainingSec !== null && remainingSec <= 0) {
+      toast.error("이 문항의 제한 시간이 지났습니다.");
       return;
     }
     socket.sendAnswer(currentQuestion.quiz_id, selectedOption);
@@ -171,6 +223,9 @@ function StudentPlayContent() {
             </span>
           </div>
           <div className="text-right text-xs text-muted-foreground">
+            {questionProgressLabel ? (
+              <p className="mb-0.5 font-mono text-[11px] font-semibold text-foreground">문항 {questionProgressLabel}</p>
+            ) : null}
             <p
               className={cn(
                 "font-medium",
@@ -200,34 +255,82 @@ function StudentPlayContent() {
             </CardContent>
           </Card>
         ) : (
-          <div className="mx-auto w-full max-w-lg">
-            {currentQuestion ? (
-              <QuizQuestionView
-                key={`${currentQuestion.quiz_id}-${effectiveActive?.startedAt ?? 0}`}
-                variant="student"
-                question={currentQuestion.question}
-                options={currentQuestion.options ?? []}
-                timeLimitSec={currentQuestion.time_limit}
-                remainingSec={remainingSec}
-                selectedOption={selectedOption}
-                onSelectOption={(index) => {
-                  setSelectedOption(index);
-                  setSubmitted(false);
-                }}
-                onSubmit={handleSubmit}
-                submitDisabled={!socket.isConnected || !currentQuestion || submitted}
-                footerNote={submitted ? "제출 완료. 강사 화면에서 집계됩니다." : undefined}
-              />
-            ) : (
+          <div className="mx-auto w-full max-w-lg space-y-4">
+            {liveEnded ? (
+              <Card className="border-emerald-500/30 bg-emerald-500/[0.06] shadow-lg">
+                <CardHeader>
+                  <CardTitle>퀴즈가 종료되었습니다</CardTitle>
+                  <CardDescription>강사가 세션을 마쳤어요. 아래에서 내 점수를 불러올 수 있습니다.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button type="button" onClick={loadMyResult} disabled={resultLoading}>
+                    {resultLoading ? "불러오는 중…" : "내 결과 보기"}
+                  </Button>
+                  {myResultRow ? (
+                    <div className="rounded-xl border border-border bg-card p-4 text-sm">
+                      <p className="font-semibold">{myResultRow.nickname}</p>
+                      <p className="mt-1 text-muted-foreground">
+                        점수 <span className="font-mono font-medium text-foreground">{myResultRow.score}</span> · 등급{" "}
+                        <span className="text-foreground">{myResultRow.grade}</span>
+                      </p>
+                    </div>
+                  ) : null}
+                  <Link
+                    href="/student/dashboard"
+                    className={cn(buttonVariants({ variant: "outline" }), "inline-flex w-full justify-center")}
+                  >
+                    대시보드로
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {!liveEnded && currentQuestion ? (
+              <>
+                {timeUpOnCurrent && !submitted ? (
+                  <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-950 dark:text-amber-100">
+                    제한 시간이 지났습니다. 서버가 허용하지 않으면 제출되지 않을 수 있어요.
+                  </p>
+                ) : null}
+                <QuizQuestionView
+                  key={`${currentQuestion.quiz_id}-${effectiveActive?.startedAt ?? 0}`}
+                  variant="student"
+                  question={currentQuestion.question}
+                  options={currentQuestion.options ?? []}
+                  timeLimitSec={currentQuestion.time_limit}
+                  remainingSec={remainingSec}
+                  selectedOption={selectedOption}
+                  onSelectOption={(index) => {
+                    setSelectedOption(index);
+                    setSubmitted(false);
+                  }}
+                  onSubmit={handleSubmit}
+                  submitDisabled={
+                    !socket.isConnected || !currentQuestion || submitted || (remainingSec !== null && remainingSec <= 0)
+                  }
+                  footerNote={
+                    submitted
+                      ? "제출 완료. 강사 화면에서 집계됩니다."
+                      : timeUpOnCurrent
+                        ? "시간 종료"
+                        : undefined
+                  }
+                />
+              </>
+            ) : null}
+
+            {!liveEnded && !currentQuestion ? (
               <Card className="border-border/90 shadow-lg">
                 <CardContent className="py-14 text-center">
                   <p className="text-base font-medium text-foreground">문항 대기</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {socket.isConnected ? "문항이 열리면 표시됩니다." : "연결 중…"}
+                    {socket.isConnected
+                      ? "지금 진행 중인 문항이 열리면 여기서 풀 수 있어요. 늦게 들어온 경우 이전 문항은 건너뜁니다."
+                      : "연결 중…"}
                   </p>
                 </CardContent>
               </Card>
-            )}
+            ) : null}
           </div>
         )}
       </main>
