@@ -118,7 +118,8 @@ export interface SessionStudentResult {
   nickname: string;
   score: number;
   grade: "excellent" | "needs_practice" | "needs_review";
-  answers: SessionStudentAnswer[];
+  /** 집계 요약만 줄 때 생략될 수 있음 */
+  answers?: SessionStudentAnswer[];
 }
 
 /** 내 계정 기준 참여 퀴즈 목록 (GET /students/me/quiz-results 등). */
@@ -135,7 +136,8 @@ export interface StudentMyQuizResultsResponse {
 }
 
 export interface SessionResult {
-  session_id: string;
+  /** 일부 응답에서 생략될 수 있음 */
+  session_id?: string;
   total_students: number;
   avg_score: number;
   grade_distribution: {
@@ -143,8 +145,8 @@ export interface SessionResult {
     needs_practice: number;
     needs_review: number;
   };
-  weak_concepts: string[];
-  quiz_stats: SessionQuizStat[];
+  weak_concepts?: string[];
+  quiz_stats?: SessionQuizStat[];
   students: SessionStudentResult[];
 }
 

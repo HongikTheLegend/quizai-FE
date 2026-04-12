@@ -107,6 +107,27 @@
 - WebSocket 인증 방식(헤더/쿼리/쿠키) 확정
 - 운영자 API 범위(사용자 권한 변경, 강제 종료 등) 확정
 
+## 8) 백엔드 수동 검증 (Swagger / OpenAPI)
+
+아래는 **종료된(ended) 세션** 집계와 강사 대시보드가 기대대로인지 확인할 때 쓰는 절차입니다.
+
+### A. `GET /sessions/{id}/result`
+
+1. **Authorize** → 로그인하여 받은 access token 입력  
+2. `GET /sessions/{id}/result` → **Try it out**  
+3. `session_id` 경로에 **ended 상태** 세션 UUID 입력 후 **Execute**
+
+**성공 응답 예시(필드):** `total_students`, `avg_score`, `grade_distribution`(`excellent` / `needs_practice` / `needs_review`), `students`(`student_id`, `nickname`, `score`, `grade`).  
+`students[].answers`, `session_id`, `weak_concepts`, `quiz_stats`는 백엔드가 생략할 수 있으며, 프론트 타입은 이를 허용합니다.
+
+**세션 UUID를 모를 때:** Supabase → Table Editor → `sessions` 테이블에서 `session_code`(예: `C3D4`)로 행을 찾아 해당 행의 `id`(UUID)를 복사합니다.
+
+### B. `GET /dashboard/instructor`
+
+1. 강사 계정(예: `instructor1@test.com`)으로 로그인한 토큰으로 **Authorize**  
+2. `GET /dashboard/instructor` → **Try it out** → **Execute**  
+3. `recent_sessions`에 **ended 세션만** 노출되는지(또는 정책대로 필터되는지) 확인합니다.
+
 ---
 
 이 문서는 기능 추가 시 갱신하며, 프론트/백엔드 모두 같은 버전을 기준으로 개발합니다.
